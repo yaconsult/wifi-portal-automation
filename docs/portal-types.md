@@ -51,11 +51,27 @@ checkbox value, POST, then verify real internet afterward.
 Costco walkthrough with real markup is in
 `docs/costco-portal-capture.md`.
 
-Sub-variants encountered:
+Sub-variants encountered — the POST always reduces to "replay the
+form's fields with the accept values filled in", the differences are
+only which fields exist:
 
-- **cmvwifi** — same shape, simpler form (no checkbox, just accept)
-- Some portals put the accept action behind a JS `onclick` —
-  the handler extracts the form's `action` + fields, ignoring the JS
+| Portal | Form contents | POST body | Gotcha |
+|---|---|---|---|
+| **cmvwifi** | hidden `origurl` + submit button | `origurl=…&ok=Accept and Continue` | no checkbox at all — the *button label itself* is a submitted field |
+| **Costco Member Wifi** | hidden Mist session fields + `tos` checkbox + submit | `ap_mac=…&client_mac=…&tos=true&auth_method=passphrase` | `auth_method=passphrase` is a red herring — no password is sent |
+
+The generic algorithm both handlers share:
+
+1. GET the portal page, parse the `<form>` — action URL, *every*
+   hidden input (they carry session/redirect state the portal
+   expects echoed back), checkbox names/values
+2. POST the form fields + the accept values (checkbox checked,
+   submit field included if the form carries one)
+3. Re-probe the canary — see "Verification" below
+
+Some portals hide the accept action behind a JS `onclick` rather
+than a real form — the handler still extracts the form's `action` +
+fields and ignores the JS entirely.
 
 ## Type 2: Credential portals ("log in with your account")
 

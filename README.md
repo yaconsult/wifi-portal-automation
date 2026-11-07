@@ -44,6 +44,23 @@ that are barely documented anywhere else:
 | `android/` | Termux:Tasker wrapper scripts + example generated XML |
 | `config.py` | `networks.toml` loading — your SSID list lives outside the code |
 
+## The example networks
+
+The SSIDs throughout the code, config, and docs are the real
+networks this toolkit was built against — kept because concrete
+examples beat placeholders:
+
+| SSID | What it is | Portal class |
+|---|---|---|
+| `cmvwifi` | City of Mountain View's free community WiFi — broadcast at the public library, parks, and downtown | form-acceptance (button submit, no checkbox) |
+| `MVwifi` | the same municipal network under an alternate SSID | form-acceptance |
+| `Costco Member Wifi` | retail store guest WiFi (Juniper Mist portal) | form-acceptance (checkbox + submit) |
+| `SHGuestNet` | a healthcare system's guest WiFi | MAC-remembered — accept once manually, never reprompts |
+| `dd-wrt` / `dd-wrt_5G` | secured home networks | none — left to the OS selector |
+| `xfinitywifi` | Comcast's subscriber hotspot network | carrier-provisioned — authorized out-of-band |
+
+Your own list goes in `networks.toml` — see "Configure" below.
+
 ## Portal taxonomy cheat sheet
 
 Full detail in `docs/portal-types.md`:
@@ -119,8 +136,14 @@ reusable machinery.
 - `docs/android-deployment.md` — USB/adb code→phone transfer patterns
 - `docs/android-termux-setup.md` — full Termux/Tasker install guide
 - `docs/costco-portal-capture.md` — a real vendor portal, captured end-to-end
-- `docs/lessons-learned.md` — Tasker/Termux/Android gotchas that shaped the design
-- `docs/architecture.md` / `docs/troubleshooting.md` — design + field fixes
+- `docs/lessons-learned.md` — the "why" behind the design:
+  Tasker/Termux/Android gotchas, plus where every log lives
+  (`mvwifi_history.log` lifecycle markers, `mvwifi_nudge.log`
+  decisions, Tasker's own `runlog.txt` action results)
+- `docs/architecture.md` — system design
+- `docs/troubleshooting.md` — symptom→cause→fix catalog: Tasker
+  import/persistence traps, plugin timeouts, binding failures,
+  portal hangs — built from real field diagnoses
 
 ## License
 
