@@ -1,0 +1,13 @@
+[Unit]
+Description=WiFi Portal Automation Resume Check
+After=suspend.target hibernate.target hybrid-sleep.target NetworkManager.service
+
+[Service]
+Type=oneshot
+ExecStartPre=/bin/sleep 5
+ExecStart=%h/.local/bin/wpa-auto --once
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=suspend.target hibernate.target hybrid-sleep.target

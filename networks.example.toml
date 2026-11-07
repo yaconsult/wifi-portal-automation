@@ -1,0 +1,34 @@
+# Network lists for wifi-portal-automation.
+# Copy to networks.toml and edit for your own networks, then pass
+# --config /path/to/networks.toml to wpa-nudge / wpa-auto.
+# (networks.toml itself is gitignored — it describes your networks.)
+
+# Every SSID that should win over the fallback when visible, in
+# priority order — open *and* secured networks alike.  Used by the
+# nudge's --defer-to-preferred shorthand so a fallback join never
+# displaces a network you'd rather be on.
+preferred = [
+    "cmvwifi",            # open municipal WiFi
+    "MVwifi",             # same municipal network, alternate SSID
+    "Costco Member Wifi", # open store WiFi (Juniper Mist portal)
+    "SHGuestNet",         # open clinic guest WiFi (MAC-remembered)
+    "dd-wrt",             # secured home network
+    "dd-wrt_5G",          # secured home network, 5 GHz
+]
+
+# The open subset of `preferred` — networks joinable via
+# `cmd wifi connect-network <ssid> open` with no stored passphrase.
+# Secured networks belong only in `preferred`: Android's own selector
+# promotes onto them natively, and connect-network can't supply a
+# passphrase anyway.
+preferred_open = [
+    "cmvwifi",
+    "MVwifi",
+    "Costco Member Wifi",
+    "SHGuestNet",
+]
+
+# The open fallback joined only when disconnected and nothing
+# preferred is visible (e.g. a hotspot network your carrier provides).
+# Joined with autojoin disabled so it never steals a preferred slot.
+fallback = "xfinitywifi"

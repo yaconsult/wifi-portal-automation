@@ -1,0 +1,495 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TaskerData sr="" dvi="1" tv="5.15.14">
+	<Profile sr="prof2" ve="2">
+		<cdate>1000000000000</cdate>
+		<edate>1000000000000</edate>
+		<id>2</id>
+		<mid0>80</mid0>
+		<nme>MVW cmvwifi Auto Connect</nme>
+		<State sr="con0" ve="2">
+			<code>160</code>
+			<Str sr="arg0" ve="3">cmvwifi</Str>
+			<Str sr="arg1" ve="3" />
+			<Str sr="arg2" ve="3" />
+			<Int sr="arg3" val="2" />
+		</State>
+	</Profile>
+	<Profile sr="prof6" ve="2">
+		<cdate>1000000000000</cdate>
+		<edate>1000000000000</edate>
+		<id>6</id>
+		<mid0>80</mid0>
+		<nme>MVW MVwifi Auto Connect</nme>
+		<State sr="con0" ve="2">
+			<code>160</code>
+			<Str sr="arg0" ve="3">MVwifi</Str>
+			<Str sr="arg1" ve="3" />
+			<Str sr="arg2" ve="3" />
+			<Int sr="arg3" val="2" />
+		</State>
+	</Profile>
+	<Profile sr="prof3" ve="2">
+		<cdate>1000000000000</cdate>
+		<edate>1000000000000</edate>
+		<id>3</id>
+		<mid0>90</mid0>
+		<nme>MVW Costco WiFi Connected</nme>
+		<State sr="con0" ve="2">
+			<code>160</code>
+			<Str sr="arg0" ve="3">Costco Member Wifi</Str>
+			<Str sr="arg1" ve="3" />
+			<Str sr="arg2" ve="3" />
+			<Int sr="arg3" val="2" />
+		</State>
+	</Profile>
+	<Profile sr="prof4" ve="2">
+		<cdate>1000000000000</cdate>
+		<edate>1000000000000</edate>
+		<id>4</id>
+		<mid0>100</mid0>
+		<nme>MVW cmvwifi Periodic Nudge</nme>
+		<Time sr="con0" ve="2">
+			<fh>-1</fh>
+			<fm>-1</fm>
+			<rep>2</rep>
+			<repval>15</repval>
+			<th>-1</th>
+			<tm>-1</tm>
+		</Time>
+	</Profile>
+	<Profile sr="prof5" ve="2">
+		<cdate>1000000000000</cdate>
+		<edate>1000000000000</edate>
+		<id>5</id>
+		<mid0>110</mid0>
+		<nme>MVW xfinitywifi Periodic Nudge</nme>
+		<Time sr="con0" ve="2">
+			<fh>-1</fh>
+			<fm>-1</fm>
+			<rep>2</rep>
+			<repval>15</repval>
+			<th>-1</th>
+			<tm>-1</tm>
+		</Time>
+	</Profile>
+	<Profile sr="prof7" ve="2">
+		<cdate>1000000000000</cdate>
+		<edate>1000000000000</edate>
+		<id>7</id>
+		<mid0>130</mid0>
+		<nme>MVW SHGuestNet WiFi Connected</nme>
+		<State sr="con0" ve="2">
+			<code>160</code>
+			<Str sr="arg0" ve="3">SHGuestNet</Str>
+			<Str sr="arg1" ve="3" />
+			<Str sr="arg2" ve="3" />
+			<Int sr="arg3" val="2" />
+		</State>
+	</Profile>
+	<Profile sr="prof8" ve="2">
+		<cdate>1000000000000</cdate>
+		<edate>1000000000000</edate>
+		<id>8</id>
+		<mid0>140</mid0>
+		<nme>MVW Display Unlocked Nudge</nme>
+		<Event sr="con0" ve="2">
+			<code>1000</code>
+		</Event>
+	</Profile>
+	<Project sr="proj0" ve="2">
+		<name>MVwifiAuto-Termux</name>
+		<pids>2,6,3,4,5,7,8</pids>
+		<tids>70,80,90,100,110,120,130,140</tids>
+	</Project>
+	<Task sr="task70">
+		<id>70</id>
+		<nme>MVW_RunPortalScript</nme>
+		<rty>2</rty>
+		<Action sr="act0" ve="7">
+			<code>1256900802</code>
+			<label>cmvwifi portal handler — runs ~/.termux/tasker/mvwifi_portal</label>
+			<Bundle sr="arg0">
+				<Vals sr="val">
+					<com.termux.execute.arguments />
+					<com.termux.execute.arguments-type>java.lang.String</com.termux.execute.arguments-type>
+					<com.termux.tasker.extra.EXECUTABLE>mvwifi_portal</com.termux.tasker.extra.EXECUTABLE>
+					<com.termux.tasker.extra.EXECUTABLE-type>java.lang.String</com.termux.tasker.extra.EXECUTABLE-type>
+					<com.termux.tasker.extra.TERMINAL>false</com.termux.tasker.extra.TERMINAL>
+					<com.termux.tasker.extra.TERMINAL-type>java.lang.Boolean</com.termux.tasker.extra.TERMINAL-type>
+					<com.termux.tasker.extra.VERSION_CODE>4</com.termux.tasker.extra.VERSION_CODE>
+					<com.termux.tasker.extra.VERSION_CODE-type>java.lang.Integer</com.termux.tasker.extra.VERSION_CODE-type>
+					<com.termux.tasker.extra.WORKDIR />
+					<com.termux.tasker.extra.WORKDIR-type>java.lang.String</com.termux.tasker.extra.WORKDIR-type>
+					<com.twofortyfouram.locale.intent.extra.BLURB>mvwifi_portal</com.twofortyfouram.locale.intent.extra.BLURB>
+					<com.twofortyfouram.locale.intent.extra.BLURB-type>java.lang.String</com.twofortyfouram.locale.intent.extra.BLURB-type>
+					<net.dinglisch.android.tasker.subbundled>true</net.dinglisch.android.tasker.subbundled>
+					<net.dinglisch.android.tasker.subbundled-type>java.lang.Boolean</net.dinglisch.android.tasker.subbundled-type>
+				</Vals>
+			</Bundle>
+			<Str sr="arg1" ve="3">com.termux.tasker</Str>
+			<Str sr="arg2" ve="3">com.termux.tasker.EditConfigurationActivity</Str>
+			<Int sr="arg3" val="60" />
+			<Int sr="arg4" val="0" />
+		</Action>
+	</Task>
+	<Task sr="task80">
+		<id>80</id>
+		<nme>MVW_ConnectAndRun</nme>
+		<rty>2</rty>
+		<Action sr="act0" ve="7">
+			<code>410</code>
+			<label>History marker — proves Tasker fired even if Termux fails</label>
+			<Str sr="arg0" ve="3">Tasker/mvwifi_history.log</Str>
+			<Str sr="arg1" ve="3">%TIMES | tasker | MVW_ConnectAndRun fired [gen 49210f]</Str>
+			<Int sr="arg2" val="1" />
+			<Int sr="arg3" val="1" />
+			<Int sr="arg4" val="0" />
+		</Action>
+		<Action sr="act1" ve="7">
+			<code>547</code>
+			<Str sr="arg0" ve="3">%CurrentSSID</Str>
+			<Str sr="arg1" ve="3">%WIFII</Str>
+			<Int sr="arg2" val="0" />
+			<Int sr="arg3" val="0" />
+		</Action>
+		<Action sr="act2" ve="7">
+			<code>37</code>
+			<ConditionList sr="if">
+				<Condition sr="c0" ve="3">
+					<lhs>%CurrentSSID</lhs>
+					<op>2</op>
+					<rhs>cmvwifi</rhs>
+				</Condition>
+			</ConditionList>
+		</Action>
+		<Action sr="act3" ve="7">
+			<code>135</code>
+			<Int sr="arg0" val="0" />
+			<Int sr="arg1" val="11" />
+			<Str sr="arg2" ve="3" />
+		</Action>
+		<Action sr="act4" ve="7">
+			<code>38</code>
+		</Action>
+		<Action sr="act5" ve="7">
+			<code>37</code>
+			<label>MVwifi = same municipal network, alternate SSID</label>
+			<ConditionList sr="if">
+				<Condition sr="c0" ve="3">
+					<lhs>%CurrentSSID</lhs>
+					<op>2</op>
+					<rhs>MVwifi</rhs>
+				</Condition>
+			</ConditionList>
+		</Action>
+		<Action sr="act6" ve="7">
+			<code>135</code>
+			<Int sr="arg0" val="0" />
+			<Int sr="arg1" val="11" />
+			<Str sr="arg2" ve="3" />
+		</Action>
+		<Action sr="act7" ve="7">
+			<code>38</code>
+		</Action>
+		<Action sr="act8" ve="7">
+			<code>398</code>
+			<Str sr="arg0" ve="3">cmvwifi</Str>
+			<Int sr="arg1" val="0" />
+			<Str sr="arg2" ve="3" />
+			<Int sr="arg3" val="0" />
+			<Int sr="arg4" val="0" />
+		</Action>
+		<Action sr="act9" ve="7">
+			<code>30</code>
+			<label>Let DHCP settle</label>
+			<Int sr="arg0" val="0" />
+			<Int sr="arg1" val="5" />
+			<Int sr="arg2" val="0" />
+			<Int sr="arg3" val="0" />
+			<Int sr="arg4" val="0" />
+		</Action>
+		<Action sr="act10" ve="7">
+			<con>true</con>
+			<code>123</code>
+			<label>Re-apply Termux protections (root; no-op unrooted)</label>
+			<Str sr="arg0" ve="3">dumpsys deviceidle whitelist +com.termux; settings put global settings_enable_monitor_phantom_procs false; pm grant com.termux android.permission.WRITE_SECURE_SETTINGS</Str>
+			<Int sr="arg1" val="15" />
+			<Int sr="arg2" val="1" />
+			<Str sr="arg3" ve="3" />
+			<Str sr="arg4" ve="3" />
+			<Str sr="arg5" ve="3" />
+			<Int sr="arg6" val="1" />
+			<Int sr="arg7" val="0" />
+			<Int sr="arg8" val="0" />
+		</Action>
+		<Action sr="act11" ve="7">
+			<code>130</code>
+			<label>Portal handler via Termux:Tasker</label>
+			<Str sr="arg0" ve="3">MVW_RunPortalScript</Str>
+			<Int sr="arg1" val="0" />
+			<Str sr="arg2" ve="3" />
+			<Str sr="arg3" ve="3" />
+			<Str sr="arg4" ve="3" />
+			<Str sr="arg5" ve="3" />
+			<Int sr="arg6" val="0" />
+			<Str sr="arg7" ve="3" />
+			<Int sr="arg8" val="0" />
+			<Int sr="arg9" val="0" />
+			<Int sr="arg10" val="1" />
+		</Action>
+		<Action sr="act12" ve="7">
+			<code>548</code>
+			<Str sr="arg0" ve="3">Portal handling complete</Str>
+			<Int sr="arg1" val="0" />
+		</Action>
+	</Task>
+	<Task sr="task90">
+		<id>90</id>
+		<nme>MVW_CostcoConnect</nme>
+		<rty>2</rty>
+		<Action sr="act0" ve="7">
+			<code>410</code>
+			<label>History marker — proves Tasker fired even if Termux fails</label>
+			<Str sr="arg0" ve="3">Tasker/mvwifi_history.log</Str>
+			<Str sr="arg1" ve="3">%TIMES | tasker | MVW_CostcoConnect fired [gen 49210f]</Str>
+			<Int sr="arg2" val="1" />
+			<Int sr="arg3" val="1" />
+			<Int sr="arg4" val="0" />
+		</Action>
+		<Action sr="act1" ve="7">
+			<con>true</con>
+			<code>123</code>
+			<label>Re-apply Termux protections (root; no-op unrooted)</label>
+			<Str sr="arg0" ve="3">dumpsys deviceidle whitelist +com.termux; settings put global settings_enable_monitor_phantom_procs false; pm grant com.termux android.permission.WRITE_SECURE_SETTINGS</Str>
+			<Int sr="arg1" val="15" />
+			<Int sr="arg2" val="1" />
+			<Str sr="arg3" ve="3" />
+			<Str sr="arg4" ve="3" />
+			<Str sr="arg5" ve="3" />
+			<Int sr="arg6" val="1" />
+			<Int sr="arg7" val="0" />
+			<Int sr="arg8" val="0" />
+		</Action>
+		<Action sr="act2" ve="7">
+			<code>1256900802</code>
+			<label>Mist TOS-accept handler — runs ~/.termux/tasker/costco_portal</label>
+			<Bundle sr="arg0">
+				<Vals sr="val">
+					<com.termux.execute.arguments />
+					<com.termux.execute.arguments-type>java.lang.String</com.termux.execute.arguments-type>
+					<com.termux.tasker.extra.EXECUTABLE>costco_portal</com.termux.tasker.extra.EXECUTABLE>
+					<com.termux.tasker.extra.EXECUTABLE-type>java.lang.String</com.termux.tasker.extra.EXECUTABLE-type>
+					<com.termux.tasker.extra.TERMINAL>false</com.termux.tasker.extra.TERMINAL>
+					<com.termux.tasker.extra.TERMINAL-type>java.lang.Boolean</com.termux.tasker.extra.TERMINAL-type>
+					<com.termux.tasker.extra.VERSION_CODE>4</com.termux.tasker.extra.VERSION_CODE>
+					<com.termux.tasker.extra.VERSION_CODE-type>java.lang.Integer</com.termux.tasker.extra.VERSION_CODE-type>
+					<com.termux.tasker.extra.WORKDIR />
+					<com.termux.tasker.extra.WORKDIR-type>java.lang.String</com.termux.tasker.extra.WORKDIR-type>
+					<com.twofortyfouram.locale.intent.extra.BLURB>costco_portal</com.twofortyfouram.locale.intent.extra.BLURB>
+					<com.twofortyfouram.locale.intent.extra.BLURB-type>java.lang.String</com.twofortyfouram.locale.intent.extra.BLURB-type>
+					<net.dinglisch.android.tasker.subbundled>true</net.dinglisch.android.tasker.subbundled>
+					<net.dinglisch.android.tasker.subbundled-type>java.lang.Boolean</net.dinglisch.android.tasker.subbundled-type>
+				</Vals>
+			</Bundle>
+			<Str sr="arg1" ve="3">com.termux.tasker</Str>
+			<Str sr="arg2" ve="3">com.termux.tasker.EditConfigurationActivity</Str>
+			<Int sr="arg3" val="60" />
+			<Int sr="arg4" val="0" />
+		</Action>
+		<Action sr="act3" ve="7">
+			<code>548</code>
+			<Str sr="arg0" ve="3">Costco portal handled</Str>
+			<Int sr="arg1" val="0" />
+		</Action>
+	</Task>
+	<Task sr="task100">
+		<id>100</id>
+		<nme>MVW_NudgeWifi</nme>
+		<rty>2</rty>
+		<Action sr="act0" ve="7">
+			<code>410</code>
+			<label>History marker — proves Tasker fired even if Termux fails</label>
+			<Str sr="arg0" ve="3">Tasker/mvwifi_history.log</Str>
+			<Str sr="arg1" ve="3">%TIMES | tasker | MVW_NudgeWifi fired [gen 49210f]</Str>
+			<Int sr="arg2" val="1" />
+			<Int sr="arg3" val="1" />
+			<Int sr="arg4" val="0" />
+		</Action>
+		<Action sr="act1" ve="7">
+			<code>1256900802</code>
+			<label>Open-preferred nudge (cmvwifi/MVwifi/Costco) + xfinity promotion (root) — runs ~/.termux/tasker/wifi_nudge</label>
+			<Bundle sr="arg0">
+				<Vals sr="val">
+					<com.termux.execute.arguments>--preferred --fallback xfinitywifi</com.termux.execute.arguments>
+					<com.termux.execute.arguments-type>java.lang.String</com.termux.execute.arguments-type>
+					<com.termux.tasker.extra.EXECUTABLE>wifi_nudge</com.termux.tasker.extra.EXECUTABLE>
+					<com.termux.tasker.extra.EXECUTABLE-type>java.lang.String</com.termux.tasker.extra.EXECUTABLE-type>
+					<com.termux.tasker.extra.TERMINAL>false</com.termux.tasker.extra.TERMINAL>
+					<com.termux.tasker.extra.TERMINAL-type>java.lang.Boolean</com.termux.tasker.extra.TERMINAL-type>
+					<com.termux.tasker.extra.VERSION_CODE>4</com.termux.tasker.extra.VERSION_CODE>
+					<com.termux.tasker.extra.VERSION_CODE-type>java.lang.Integer</com.termux.tasker.extra.VERSION_CODE-type>
+					<com.termux.tasker.extra.WORKDIR />
+					<com.termux.tasker.extra.WORKDIR-type>java.lang.String</com.termux.tasker.extra.WORKDIR-type>
+					<com.twofortyfouram.locale.intent.extra.BLURB>wifi_nudge --preferred --fallback xfinitywifi</com.twofortyfouram.locale.intent.extra.BLURB>
+					<com.twofortyfouram.locale.intent.extra.BLURB-type>java.lang.String</com.twofortyfouram.locale.intent.extra.BLURB-type>
+					<net.dinglisch.android.tasker.subbundled>true</net.dinglisch.android.tasker.subbundled>
+					<net.dinglisch.android.tasker.subbundled-type>java.lang.Boolean</net.dinglisch.android.tasker.subbundled-type>
+				</Vals>
+			</Bundle>
+			<Str sr="arg1" ve="3">com.termux.tasker</Str>
+			<Str sr="arg2" ve="3">com.termux.tasker.EditConfigurationActivity</Str>
+			<Int sr="arg3" val="45" />
+			<Int sr="arg4" val="0" />
+		</Action>
+	</Task>
+	<Task sr="task110">
+		<id>110</id>
+		<nme>MVW_NudgeXfinity</nme>
+		<rty>2</rty>
+		<Action sr="act0" ve="7">
+			<code>410</code>
+			<label>History marker — proves Tasker fired even if Termux fails</label>
+			<Str sr="arg0" ve="3">Tasker/mvwifi_history.log</Str>
+			<Str sr="arg1" ve="3">%TIMES | tasker | MVW_NudgeXfinity fired [gen 49210f]</Str>
+			<Int sr="arg2" val="1" />
+			<Int sr="arg3" val="1" />
+			<Int sr="arg4" val="0" />
+		</Action>
+		<Action sr="act1" ve="7">
+			<code>1256900802</code>
+			<label>xfinitywifi fallback join, autojoin off, defers to preferred SSIDs (root) — runs ~/.termux/tasker/wifi_nudge</label>
+			<Bundle sr="arg0">
+				<Vals sr="val">
+					<com.termux.execute.arguments>--ssid xfinitywifi --autojoin-disabled --defer-to-preferred</com.termux.execute.arguments>
+					<com.termux.execute.arguments-type>java.lang.String</com.termux.execute.arguments-type>
+					<com.termux.tasker.extra.EXECUTABLE>wifi_nudge</com.termux.tasker.extra.EXECUTABLE>
+					<com.termux.tasker.extra.EXECUTABLE-type>java.lang.String</com.termux.tasker.extra.EXECUTABLE-type>
+					<com.termux.tasker.extra.TERMINAL>false</com.termux.tasker.extra.TERMINAL>
+					<com.termux.tasker.extra.TERMINAL-type>java.lang.Boolean</com.termux.tasker.extra.TERMINAL-type>
+					<com.termux.tasker.extra.VERSION_CODE>4</com.termux.tasker.extra.VERSION_CODE>
+					<com.termux.tasker.extra.VERSION_CODE-type>java.lang.Integer</com.termux.tasker.extra.VERSION_CODE-type>
+					<com.termux.tasker.extra.WORKDIR />
+					<com.termux.tasker.extra.WORKDIR-type>java.lang.String</com.termux.tasker.extra.WORKDIR-type>
+					<com.twofortyfouram.locale.intent.extra.BLURB>wifi_nudge --ssid xfinitywifi --autojoin-disabled --defer-to-preferred</com.twofortyfouram.locale.intent.extra.BLURB>
+					<com.twofortyfouram.locale.intent.extra.BLURB-type>java.lang.String</com.twofortyfouram.locale.intent.extra.BLURB-type>
+					<net.dinglisch.android.tasker.subbundled>true</net.dinglisch.android.tasker.subbundled>
+					<net.dinglisch.android.tasker.subbundled-type>java.lang.Boolean</net.dinglisch.android.tasker.subbundled-type>
+				</Vals>
+			</Bundle>
+			<Str sr="arg1" ve="3">com.termux.tasker</Str>
+			<Str sr="arg2" ve="3">com.termux.tasker.EditConfigurationActivity</Str>
+			<Int sr="arg3" val="45" />
+			<Int sr="arg4" val="0" />
+		</Action>
+	</Task>
+	<Task sr="task120">
+		<id>120</id>
+		<nme>MVW_ShowVersion</nme>
+		<rty>2</rty>
+		<Action sr="act0" ve="7">
+			<code>548</code>
+			<label>Shows the imported project's generation stamp</label>
+			<Str sr="arg0" ve="3">MVwifiAuto-Termux gen 49210f</Str>
+			<Int sr="arg1" val="0" />
+		</Action>
+	</Task>
+	<Task sr="task130">
+		<id>130</id>
+		<nme>MVW_SHGuestCapture</nme>
+		<rty>2</rty>
+		<Action sr="act0" ve="7">
+			<code>410</code>
+			<label>History marker — proves Tasker fired even if Termux fails</label>
+			<Str sr="arg0" ve="3">Tasker/mvwifi_history.log</Str>
+			<Str sr="arg1" ve="3">%TIMES | tasker | MVW_SHGuestCapture fired [gen 49210f]</Str>
+			<Int sr="arg2" val="1" />
+			<Int sr="arg3" val="1" />
+			<Int sr="arg4" val="0" />
+		</Action>
+		<Action sr="act1" ve="7">
+			<con>true</con>
+			<code>123</code>
+			<label>Re-apply Termux protections (root; no-op unrooted)</label>
+			<Str sr="arg0" ve="3">dumpsys deviceidle whitelist +com.termux; settings put global settings_enable_monitor_phantom_procs false; pm grant com.termux android.permission.WRITE_SECURE_SETTINGS</Str>
+			<Int sr="arg1" val="15" />
+			<Int sr="arg2" val="1" />
+			<Str sr="arg3" ve="3" />
+			<Str sr="arg4" ve="3" />
+			<Str sr="arg5" ve="3" />
+			<Int sr="arg6" val="1" />
+			<Int sr="arg7" val="0" />
+			<Int sr="arg8" val="0" />
+		</Action>
+		<Action sr="act2" ve="7">
+			<code>1256900802</code>
+			<label>Portal capture probe — runs ~/.termux/tasker/shguest_probe</label>
+			<Bundle sr="arg0">
+				<Vals sr="val">
+					<com.termux.execute.arguments />
+					<com.termux.execute.arguments-type>java.lang.String</com.termux.execute.arguments-type>
+					<com.termux.tasker.extra.EXECUTABLE>shguest_probe</com.termux.tasker.extra.EXECUTABLE>
+					<com.termux.tasker.extra.EXECUTABLE-type>java.lang.String</com.termux.tasker.extra.EXECUTABLE-type>
+					<com.termux.tasker.extra.TERMINAL>false</com.termux.tasker.extra.TERMINAL>
+					<com.termux.tasker.extra.TERMINAL-type>java.lang.Boolean</com.termux.tasker.extra.TERMINAL-type>
+					<com.termux.tasker.extra.VERSION_CODE>4</com.termux.tasker.extra.VERSION_CODE>
+					<com.termux.tasker.extra.VERSION_CODE-type>java.lang.Integer</com.termux.tasker.extra.VERSION_CODE-type>
+					<com.termux.tasker.extra.WORKDIR />
+					<com.termux.tasker.extra.WORKDIR-type>java.lang.String</com.termux.tasker.extra.WORKDIR-type>
+					<com.twofortyfouram.locale.intent.extra.BLURB>shguest_probe</com.twofortyfouram.locale.intent.extra.BLURB>
+					<com.twofortyfouram.locale.intent.extra.BLURB-type>java.lang.String</com.twofortyfouram.locale.intent.extra.BLURB-type>
+					<net.dinglisch.android.tasker.subbundled>true</net.dinglisch.android.tasker.subbundled>
+					<net.dinglisch.android.tasker.subbundled-type>java.lang.Boolean</net.dinglisch.android.tasker.subbundled-type>
+				</Vals>
+			</Bundle>
+			<Str sr="arg1" ve="3">com.termux.tasker</Str>
+			<Str sr="arg2" ve="3">com.termux.tasker.EditConfigurationActivity</Str>
+			<Int sr="arg3" val="90" />
+			<Int sr="arg4" val="0" />
+		</Action>
+		<Action sr="act3" ve="7">
+			<code>548</code>
+			<Str sr="arg0" ve="3">SHGuestNet portal captured</Str>
+			<Int sr="arg1" val="0" />
+		</Action>
+	</Task>
+	<Task sr="task140">
+		<id>140</id>
+		<nme>MVW_UnlockNudge</nme>
+		<rty>2</rty>
+		<Action sr="act0" ve="7">
+			<code>410</code>
+			<label>History marker — proves Tasker fired even if Termux fails</label>
+			<Str sr="arg0" ve="3">Tasker/mvwifi_history.log</Str>
+			<Str sr="arg1" ve="3">%TIMES | tasker | MVW_UnlockNudge fired [gen 49210f]</Str>
+			<Int sr="arg2" val="1" />
+			<Int sr="arg3" val="1" />
+			<Int sr="arg4" val="0" />
+		</Action>
+		<Action sr="act1" ve="7">
+			<code>1256900802</code>
+			<label>Throttled open-preferred nudge on unlock (root) — runs ~/.termux/tasker/wifi_nudge</label>
+			<Bundle sr="arg0">
+				<Vals sr="val">
+					<com.termux.execute.arguments>--preferred --fallback xfinitywifi --min-interval 300</com.termux.execute.arguments>
+					<com.termux.execute.arguments-type>java.lang.String</com.termux.execute.arguments-type>
+					<com.termux.tasker.extra.EXECUTABLE>wifi_nudge</com.termux.tasker.extra.EXECUTABLE>
+					<com.termux.tasker.extra.EXECUTABLE-type>java.lang.String</com.termux.tasker.extra.EXECUTABLE-type>
+					<com.termux.tasker.extra.TERMINAL>false</com.termux.tasker.extra.TERMINAL>
+					<com.termux.tasker.extra.TERMINAL-type>java.lang.Boolean</com.termux.tasker.extra.TERMINAL-type>
+					<com.termux.tasker.extra.VERSION_CODE>4</com.termux.tasker.extra.VERSION_CODE>
+					<com.termux.tasker.extra.VERSION_CODE-type>java.lang.Integer</com.termux.tasker.extra.VERSION_CODE-type>
+					<com.termux.tasker.extra.WORKDIR />
+					<com.termux.tasker.extra.WORKDIR-type>java.lang.String</com.termux.tasker.extra.WORKDIR-type>
+					<com.twofortyfouram.locale.intent.extra.BLURB>wifi_nudge --preferred --fallback xfinitywifi --min-interval 300</com.twofortyfouram.locale.intent.extra.BLURB>
+					<com.twofortyfouram.locale.intent.extra.BLURB-type>java.lang.String</com.twofortyfouram.locale.intent.extra.BLURB-type>
+					<net.dinglisch.android.tasker.subbundled>true</net.dinglisch.android.tasker.subbundled>
+					<net.dinglisch.android.tasker.subbundled-type>java.lang.Boolean</net.dinglisch.android.tasker.subbundled-type>
+				</Vals>
+			</Bundle>
+			<Str sr="arg1" ve="3">com.termux.tasker</Str>
+			<Str sr="arg2" ve="3">com.termux.tasker.EditConfigurationActivity</Str>
+			<Int sr="arg3" val="45" />
+			<Int sr="arg4" val="0" />
+		</Action>
+	</Task>
+</TaskerData>

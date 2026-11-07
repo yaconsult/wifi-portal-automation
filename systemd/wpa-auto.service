@@ -1,0 +1,16 @@
+[Unit]
+Description=WiFi Portal Auto-Connect
+Documentation=https://github.com/yaconsult/wifi-portal-automation
+After=network.target NetworkManager.service
+Wants=network.target NetworkManager.service
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=10
+ExecStart=%h/.local/bin/wpa-auto --daemon --interval 60
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

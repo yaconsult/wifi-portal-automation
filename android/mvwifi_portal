@@ -1,0 +1,35 @@
+#!/data/data/com.termux/files/usr/bin/sh
+# MVwifiAuto Tasker wrapper — executed by the Termux:Tasker plugin.
+#
+# Writes lifecycle events to a shared history log; Tasker's
+# MVW_ConnectAndRun appends its own marker before invoking us, so a
+# tasker marker with no matching termux entry means the plugin call
+# never reached Termux. History is bounded to the last 200 lines.
+HIST=/data/data/com.termux/files/home/storage/shared/Tasker/mvwifi_history.log
+PHANTOM="$(/system/bin/settings get global settings_enable_monitor_phantom_procs 2>/dev/null)"
+echo "$(date '+%F %T') | termux | start | phantom=$PHANTOM" >> "$HIST" 2>/dev/null
+
+# Re-disable the phantom process killer in case a system update
+# re-enabled it (requires WRITE_SECURE_SETTINGS granted to Termux
+# by deploy_android.sh or termux_setup.sh; silently skipped otherwise).
+/system/bin/settings put global settings_enable_monitor_phantom_procs false 2>/dev/null || true
+
+# Hold Termux wake lock so Android cannot kill the run mid-execution.
+/data/data/com.termux/files/usr/bin/termux-wake-lock
+/data/data/com.termux/files/usr/bin/wpa-android --once --verbose --log-file /data/data/com.termux/files/home/storage/shared/mvwifi_tasker.log
+STATUS=$?
+/data/data/com.termux/files/usr/bin/termux-wake-unlock
+
+echo "$(date '+%F %T') | termux | exit=$STATUS" >> "$HIST" 2>/dev/null
+# Keep the history file bounded.  Rotate under an atomic mkdir lock:
+# concurrent wrappers (e.g. both nudge tasks firing in the same
+# second) previously raced on a shared $HIST.tmp — a second `>` could
+# truncate it before the first mv, leaving an empty history log.
+# Losers skip; the next run rotates.
+LOCK="$HIST.lock"
+if mkdir "$LOCK" 2>/dev/null; then
+    tail -n 200 "$HIST" > "$HIST.tmp.$$" 2>/dev/null \
+        && mv "$HIST.tmp.$$" "$HIST"
+    rmdir "$LOCK"
+fi
+exit $STATUS

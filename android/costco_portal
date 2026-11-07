@@ -1,0 +1,31 @@
+#!/data/data/com.termux/files/usr/bin/sh
+# Costco portal handler wrapper — executed by the Termux:Tasker plugin
+# when the "Costco Member Wifi" WiFi Connected profile fires.
+#
+# Writes lifecycle events to the same shared history log as
+# mvwifi_portal (distinguished by the "costco_portal" stage tag) so a
+# tasker marker with no matching termux entry means the plugin call
+# never reached Termux. History is bounded to the last 200 lines.
+HIST=/data/data/com.termux/files/home/storage/shared/Tasker/mvwifi_history.log
+PHANTOM="$(/system/bin/settings get global settings_enable_monitor_phantom_procs 2>/dev/null)"
+echo "$(date '+%F %T') | termux | costco_portal start | phantom=$PHANTOM" >> "$HIST" 2>/dev/null
+
+/system/bin/settings put global settings_enable_monitor_phantom_procs false 2>/dev/null || true
+
+# python -m rather than an entry-point script: the editable install
+# exposes new modules on git pull without needing a reinstall.
+/data/data/com.termux/files/usr/bin/termux-wake-lock
+/data/data/com.termux/files/usr/bin/python -m wifi_portal_automation.costco_portal --verbose --log-file /data/data/com.termux/files/home/storage/shared/costco_portal.log --debug-dir /data/data/com.termux/files/home/storage/shared/costco_debug
+STATUS=$?
+/data/data/com.termux/files/usr/bin/termux-wake-unlock
+
+echo "$(date '+%F %T') | termux | costco_portal exit=$STATUS" >> "$HIST" 2>/dev/null
+# Rotate under an atomic mkdir lock — concurrent wrappers previously
+# raced on a shared $HIST.tmp; losers skip, the next run rotates.
+LOCK="$HIST.lock"
+if mkdir "$LOCK" 2>/dev/null; then
+    tail -n 200 "$HIST" > "$HIST.tmp.$$" 2>/dev/null \
+        && mv "$HIST.tmp.$$" "$HIST"
+    rmdir "$LOCK"
+fi
+exit $STATUS
