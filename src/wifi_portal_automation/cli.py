@@ -1,4 +1,4 @@
-"""CLI entry point for wifi-portal-auto."""
+"""CLI entry point for wpa-auto."""
 
 import sys
 
