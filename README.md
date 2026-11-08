@@ -128,7 +128,31 @@ reusable machinery.
 
 - Python ≥ 3.11, `requests` (only runtime dep); `uv` for dev
 - Linux: NetworkManager (`nmcli`)
-- Android: root (`su`/`cmd wifi`), Termux, Termux:Tasker, Tasker
+- Android: Termux, Termux:Tasker, Tasker — **root only for some features** (below)
+
+## Do you need root?
+
+Less than you'd think — the toolkit deliberately keeps the
+portal-handling path root-free so unrooted phones still get partial
+value:
+
+| Capability | Root needed? | Why |
+|---|---|---|
+| Portal detect + accept (`wifi_binding`/`captive_portal`) | **No** | `SO_BINDTODEVICE` works from Termux's shell user — it's a socket opt, not a privileged call |
+| Portal recon (`wpa-portal-probe`) | No | same bound-session mechanism |
+| Tasker profiles → Termux:Tasker wrappers | No | the plugin runs as Termux's uid |
+| `cmd wifi` joins / SSID ranking (`wpa-nudge`) | **Yes** | `cmd wifi connect-network`/`start-scan` require `su` |
+| Auto-promotion off fallback networks | Yes | same `cmd wifi` mechanism |
+| Deploying wrappers into Termux's private dir | Yes* | `~/.termux/` is app-private; `su` (or manual Termux-side copy) required |
+| Phantom-process-killer toggle | Yes* | needs root or a `WRITE_SECURE_SETTINGS` grant |
+
+*Unrooted path*: the generated Tasker project's portal profiles
+(`WiFi Connected` → portal handler) work fully without root — join
+the network yourself (or let Android), and terms still get accepted
+automatically. What root adds is *automation of the join decision*:
+ranked networks, fallback joins, never-steal, promotion. The nudge
+wrapper exits cleanly with `no_root` on unrooted devices, so a mixed
+setup degrades rather than breaks.
 
 ## Docs
 
