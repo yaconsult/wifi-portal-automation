@@ -42,11 +42,11 @@ profile without affecting preferred-network handling.
 
 CLI::
 
-    mvwifi-nudge
-    mvwifi-nudge --preferred --fallback xfinitywifi
-    mvwifi-nudge --ssid xfinitywifi --autojoin-disabled \
+    wpa-nudge
+    wpa-nudge --preferred --fallback xfinitywifi
+    wpa-nudge --ssid xfinitywifi --autojoin-disabled \
         --defer-to-preferred
-    mvwifi-nudge --dry-run --json
+    wpa-nudge --dry-run --json
 """
 
 from __future__ import annotations

@@ -2,7 +2,7 @@
 # Termux-side setup for MVwifiAuto Android integration.
 #
 # Run this inside Termux after cloning the repo:
-#   cd ~/MVwifiAuto
+#   cd ~/wifi-portal-automation
 #   sh scripts/termux_setup.sh
 #
 # This script:
@@ -29,8 +29,8 @@ if command -v wpa-android >/dev/null 2>&1; then
 else
     echo "  Installing wpa-auto package..."
     if [ ! -f "$HOME_DIR/MVwifiAuto/pyproject.toml" ]; then
-        echo "  ERROR: ~/MVwifiAuto not found. Clone the repo first:"
-        echo "    git clone https://github.com/yaconsult/MVwifiAuto.git ~/MVwifiAuto"
+        echo "  ERROR: ~/wifi-portal-automation not found. Clone the repo first:"
+        echo "    git clone https://github.com/yaconsult/MVwifiAuto.git ~/wifi-portal-automation"
         exit 1
     fi
     cd "$HOME_DIR/MVwifiAuto"

@@ -14,8 +14,8 @@ Usage::
 
 Or via CLI::
 
-    mvwifi-analyze-portal
-    mvwifi-analyze-portal --probe-url http://1.1.1.1/ --output /tmp/report.txt
+    wpa-analyze-portal
+    wpa-analyze-portal --probe-url http://1.1.1.1/ --output /tmp/report.txt
 
 The analyzer does NOT attempt to accept the portal — it only captures
 and reports the portal structure so you can implement a handler.

@@ -1,9 +1,9 @@
 #!/bin/bash
-# Install MV WiFi Auto as a user systemd service
+# Install WiFi Portal Automation as a user systemd service
 
 set -e
 
-echo "=== MV WiFi Auto Installer ==="
+echo "=== WiFi Portal Automation Installer ==="
 
 # Resolve the repo root (directory containing this script)
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

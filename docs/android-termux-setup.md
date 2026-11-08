@@ -368,7 +368,7 @@ Auto Connect`, `MVW Costco WiFi Connected`, `MVW cmvwifi Periodic Nudge`,
 `MVW Display Unlocked Nudge`
 profiles — all pre-configured for the Termux:Tasker plugin.
 
-The `MVW SHGuestNet WiFi Connected` profile (healthcare guest network
+The `MVW SHGuestNet WiFi Connected` profile (healthcare clinic
 guest WiFi) runs a *capture probe*, not an accept handler: on
 association it saves the portal's redirect chain, HTML, form fields,
 JS assets, and any deep-link intents to

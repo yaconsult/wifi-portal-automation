@@ -154,10 +154,10 @@ if [ "$HAVE_ROOT" -eq 1 ]; then
 
     for module in costco_portal costco_probe portal_probe wifi_nudge root_shell; do
         if adb_su "test -f $TERMUX_HOME/MVwifiAuto/src/wifi_portal_automation/$module.py"; then
-            record PASS "$module module" "in ~/MVwifiAuto clone"
+            record PASS "$module module" "in ~/wifi-portal-automation clone"
         else
             record WARN "$module module" \
-                "not in ~/MVwifiAuto clone; run 'git pull' in Termux"
+                "not in ~/wifi-portal-automation clone; run 'git pull' in Termux"
         fi
     done
 fi

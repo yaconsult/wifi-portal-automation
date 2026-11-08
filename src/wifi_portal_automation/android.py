@@ -7,9 +7,9 @@ cellular-preferred policy routing.
 Designed to be called from Tasker via ``Run Shell`` (non-root) or run
 directly from the Termux command line::
 
-    mvwifi-android --once
-    mvwifi-android --once --verbose
-    mvwifi-android --once --verbose --log-file /sdcard/mvwifi.log
+    wpa-android --once
+    wpa-android --once --verbose
+    wpa-android --once --verbose --log-file /sdcard/mvwifi.log
 
 Requires:
     - Termux with Python 3.11+

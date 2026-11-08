@@ -1407,7 +1407,7 @@ def build_termux_project() -> TaskerProject:
     the captive portal with SO_BINDTODEVICE interface binding.
 
     Tasks:
-        - MVW_RunPortalScript: runs mvwifi-android via Termux:Tasker plugin
+        - MVW_RunPortalScript: runs wpa-android via Termux:Tasker plugin
         - MVW_ConnectAndRun: connects to cmvwifi (or skips when already on
           cmvwifi/MVwifi), waits for DHCP, calls MVW_RunPortalScript
         - MVW_CostcoConnect: runs the Costco Mist portal handler

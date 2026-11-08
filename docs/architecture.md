@@ -1,8 +1,8 @@
-# MV WiFi Auto - Architecture
+# WiFi Portal Automation - Architecture
 
 ## Overview
 
-MV WiFi Auto is a user-space daemon that automatically connects to Mountain View public WiFi (`cmvwifi`) and handles the captive portal acceptance. It integrates with NetworkManager via D-Bus and runs as a user systemd service.
+WiFi Portal Automation is a user-space daemon that automatically connects to Mountain View public WiFi (`cmvwifi`) and handles the captive portal acceptance. It integrates with NetworkManager via D-Bus and runs as a user systemd service.
 
 ## Components
 
@@ -10,14 +10,14 @@ MV WiFi Auto is a user-space daemon that automatically connects to Mountain View
 ┌─────────────────────────────────────────────────────────┐
 │                    User Session                         │
 │  ┌─────────────────┐    ┌──────────────────────────────┐ │
-│  │ systemd --user  │───▶│ mvwifi-auto.service        │ │
+│  │ systemd --user  │───▶│ wpa-auto.service        │ │
 │  └─────────────────┘    │ (runs every 60s)           │ │
 │                         └──────────────┬───────────────┘ │
 └────────────────────────────────────────┼─────────────────┘
                                          │
                                          ▼
 ┌─────────────────────────────────────────────────────────┐
-│              mvwifi-auto Controller                     │
+│              wpa-auto Controller                     │
 │  ┌──────────────────┐  ┌──────────────────────────┐  │
 │  │ WiFiController   │  │ decide_action()            │  │
 │  │                  │  │ - Check current state      │  │
@@ -246,7 +246,7 @@ Costco WiFi to fill in the real values.
 | Portal accept | POST to `forms/guest_toued` | Same |
 | Verify | GET `success.txt` | Same |
 | Re-check | Daemon polls every 60s; resume service after suspend | WiFi Connected re-fires on each re-association |
-| Logging | `journalctl --user -u mvwifi-auto` | `mvwifi_tasker.log` (overwritten each run) |
+| Logging | `journalctl --user -u wpa-auto` | `mvwifi_tasker.log` (overwritten each run) |
 
 The portal-handling code (`captive_portal.py`,
 `wifi_binding.py`) is shared between platforms. The Linux
@@ -373,14 +373,14 @@ replace.
 
 ```ini
 [Unit]
-Description=Mountain View WiFi Auto-Connect
+Description=WiFi Portal Auto-Connect
 After=network.target NetworkManager.service
 
 [Service]
 Type=simple
 Restart=always
 RestartSec=10
-ExecStart=%h/.local/bin/mvwifi-auto --daemon --interval 60
+ExecStart=%h/.local/bin/wpa-auto --daemon --interval 60
 
 [Install]
 WantedBy=default.target
@@ -392,13 +392,13 @@ For handling suspend/resume scenarios where captive portal sessions expire:
 
 ```ini
 [Unit]
-Description=MV WiFi Auto Resume Check
+Description=WiFi Portal Automation Resume Check
 After=suspend.target hibernate.target hybrid-sleep.target NetworkManager.service
 
 [Service]
 Type=oneshot
 ExecStartPre=/bin/sleep 5
-ExecStart=%h/.local/bin/mvwifi-auto --once
+ExecStart=%h/.local/bin/wpa-auto --once
 StandardOutput=journal
 StandardError=journal
 

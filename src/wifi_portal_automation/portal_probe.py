@@ -29,8 +29,8 @@ on the phone (no laptop, no Playwright):
 
 CLI::
 
-    mvwifi-costco-probe --outdir ~/storage/shared/costco_capture
-    mvwifi-portal-probe --name shguestnet --no-package --wait 60 --json
+    wpa-costco-probe --outdir ~/storage/shared/costco_capture
+    wpa-portal-probe --name shguestnet --no-package --wait 60 --json
 """
 
 from __future__ import annotations

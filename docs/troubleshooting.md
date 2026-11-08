@@ -1,4 +1,4 @@
-# MV WiFi Auto - Troubleshooting Guide
+# WiFi Portal Automation - Troubleshooting Guide
 
 ## Symptom Index
 
@@ -11,7 +11,7 @@
 - [Service Stops After Suspend/Resume](#service-stops-after-suspendresume)
 
 **Android / Termux:**
-- ["MVW cmvwifi Auto Connect" profile doesn't fire](#mvw-cmvwifi-auto-connect-profile-doesnt-fire)
+- ["MVW cmvwifi Auto Connect" profile doesn't fire](#mvw-cwpa-auto-connect-profile-doesnt-fire)
 - [Profiles enabled but never fire (after re-import)](#profiles-enabled-but-never-fire-after-re-import)
 - [Scheduled tasks run old behavior after re-import](#scheduled-tasks-run-old-behavior-after-re-import)
 - [Phone takes 15-30 minutes to join cmvwifi](#phone-takes-15-30-minutes-to-join-cmvwifi)
@@ -29,15 +29,15 @@
 
 ### Service Won't Start
 
-**Problem**: `systemctl --user start mvwifi-auto` fails
+**Problem**: `systemctl --user start wpa-auto` fails
 
 **Check**:
 ```bash
 # Check service status
-systemctl --user status mvwifi-auto
+systemctl --user status wpa-auto
 
 # Check for errors in logs
-journalctl --user -u mvwifi-auto --since "5 minutes ago"
+journalctl --user -u wpa-auto --since "5 minutes ago"
 ```
 
 **Common Causes**:
@@ -67,7 +67,7 @@ journalctl --user -u mvwifi-auto --since "5 minutes ago"
 3. **Wrong ExecStart path**
    ```bash
    # Check the wrapper script exists
-   cat ~/.local/bin/mvwifi-auto
+   cat ~/.local/bin/wpa-auto
    
    # Update service file if needed
    systemctl --user daemon-reload
@@ -84,10 +84,10 @@ journalctl --user -u mvwifi-auto --since "5 minutes ago"
 **Quick workaround** (for testing):
 ```bash
 # Stop systemd service
-systemctl --user stop mvwifi-auto
+systemctl --user stop wpa-auto
 
 # Run in user session instead (avoids permission issues)
-mvwifi-auto --daemon &
+wpa-auto --daemon &
 ```
 
 **Proper fix** (recommended):
@@ -95,8 +95,8 @@ mvwifi-auto --daemon &
 Create a polkit rule to allow your user to access NetworkManager:
 
 ```bash
-sudo tee /etc/polkit-1/rules.d/50-mvwifi-auto.rules << 'EOF'
-/* Allow mvwifi-auto user service to access NetworkManager */
+sudo tee /etc/polkit-1/rules.d/50-wpa-auto.rules << 'EOF'
+/* Allow wpa-auto user service to access NetworkManager */
 polkit.addRule(function(action, subject) {
     if (action.id.indexOf("org.freedesktop.NetworkManager.") == 0 &&
         subject.user == "USERNAME") {
@@ -110,12 +110,12 @@ EOF
 Then reload and restart:
 ```bash
 sudo systemctl restart polkit
-systemctl --user restart mvwifi-auto
+systemctl --user restart wpa-auto
 ```
 
 **Verify the fix:**
 ```bash
-mvwifi-auto --once --verbose
+wpa-auto --once --verbose
 # Should show: "Current state: ssid='cmvwifi', internet=True"
 ```
 
@@ -133,7 +133,7 @@ mvwifi-auto --once --verbose
 2. **Run manual test with verbose output**:
    ```bash
    cd ~/wifi-portal-automation
-   uv run mvwifi-auto --once --verbose
+   uv run wpa-auto --once --verbose
    ```
 
 3. **Check NetworkManager can connect**:
@@ -168,7 +168,7 @@ mvwifi-auto --once --verbose
 # "Current state: ssid=dd-wrt, internet=True"
 # And take no action
 
-journalctl --user -u mvwifi-auto -f
+journalctl --user -u wpa-auto -f
 ```
 
 **If interference occurs**:
@@ -222,10 +222,10 @@ journalctl --user -u mvwifi-auto -f
 **Check systemd configuration**:
 ```bash
 # Check if service is still enabled
-systemctl --user is-enabled mvwifi-auto
+systemctl --user is-enabled wpa-auto
 
 # Check last start time
-systemctl --user status mvwifi-auto | grep "Active:"
+systemctl --user status wpa-auto | grep "Active:"
 ```
 
 **Solution**:
@@ -249,17 +249,17 @@ The service has `Restart=always` which should handle this. If not:
 Edit the service to add `--verbose`:
 ```bash
 # Edit service file
-systemctl --user edit mvwifi-auto
+systemctl --user edit wpa-auto
 
 # Add to [Service] section:
 # ExecStart=
-# ExecStart=%h/.local/bin/mvwifi-auto --daemon --interval 60 --verbose
+# ExecStart=%h/.local/bin/wpa-auto --daemon --interval 60 --verbose
 ```
 
 Or run manually:
 ```bash
 cd ~/wifi-portal-automation
-uv run mvwifi-auto --daemon --interval 30 --verbose
+uv run wpa-auto --daemon --interval 30 --verbose
 ```
 
 ### Run Tests
@@ -341,16 +341,16 @@ EOF
 
 ```bash
 # Follow logs in real-time
-journalctl --user -u mvwifi-auto -f
+journalctl --user -u wpa-auto -f
 
 # Get last 100 lines
-journalctl --user -u mvwifi-auto -n 100
+journalctl --user -u wpa-auto -n 100
 
 # Get logs since last boot
-journalctl --user -u mvwifi-auto --since "today"
+journalctl --user -u wpa-auto --since "today"
 
 # Get logs with specific time range
-journalctl --user -u mvwifi-auto --since "2026-05-07 10:00" --until "2026-05-07 11:00"
+journalctl --user -u wpa-auto --since "2026-05-07 10:00" --until "2026-05-07 11:00"
 ```
 
 ## Reporting Issues
@@ -359,12 +359,12 @@ When reporting issues, include:
 
 1. **Service status**:
    ```bash
-   systemctl --user status mvwifi-auto
+   systemctl --user status wpa-auto
    ```
 
 2. **Recent logs**:
    ```bash
-   journalctl --user -u mvwifi-auto --since "1 hour ago"
+   journalctl --user -u wpa-auto --since "1 hour ago"
    ```
 
 3. **Network status**:
@@ -376,7 +376,7 @@ When reporting issues, include:
 4. **Test output**:
    ```bash
    cd ~/wifi-portal-automation
-   uv run mvwifi-auto --once --verbose 2>&1
+   uv run wpa-auto --once --verbose 2>&1
    ```
 
 5. **Environment**:
