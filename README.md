@@ -44,6 +44,41 @@ that are barely documented anywhere else:
 | `android/` | Termux:Tasker wrapper scripts + example generated XML |
 | `config.py` | `networks.toml` loading — your SSID list lives outside the code |
 
+## Use just the parts you need
+
+Everything below the whole-system level works standalone — the most
+common take-aways:
+
+```python
+from wifi_portal_automation.wifi_binding import create_wifi_session
+from wifi_portal_automation.captive_portal import (
+    accept_cmvwifi_terms,
+    detect_captive_portal,
+    verify_internet_connectivity,
+)
+
+session = create_wifi_session()          # SO_BINDTODEVICE + wlan0/wlan1 auto-detect —
+                                         # cellular can't steal your routing
+portal, host = detect_captive_portal(session=session)
+if portal:
+    accept_cmvwifi_terms(portal_host=host, session=session)   # parse form → POST
+assert verify_internet_connectivity(session=session)          # never trust the 200
+```
+
+Or the whole flow in one call:
+`handle_cmvwifi_connection(session=create_wifi_session())`.
+
+On Linux with no binding needed, pass no `session=` — every function
+falls back to plain `requests`.
+
+CLI equivalents:
+
+```bash
+wpa-nudge --preferred --dry-run --json   # decision report, no radio work
+wpa-portal-probe --ssid "CoffeeShop WiFi"  # capture an unknown portal end-to-end
+wpa-tasker-gen --termux --stdout         # generated Tasker project XML
+```
+
 ## The example networks
 
 The SSIDs throughout the code, config, and docs are the real
