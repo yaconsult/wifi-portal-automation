@@ -15,6 +15,11 @@ patterns; `scripts/deploy_android.sh` automates the full flow.
   `com.termux.permission.RUN_COMMAND` granted to Tasker)
 - Tasker
 
+Optional but recommended: in Magisk's Superuser tab, toggle the
+notification (bell) icon off for Termux, Tasker, and Shell — otherwise
+every scheduled `su` call pops a "granted superuser rights" toast
+(see `docs/lessons-learned.md`).
+
 If multiple devices show in `adb devices` (USB + WiFi ADB), pin every
 command: `adb -s <serial> ...`.
 

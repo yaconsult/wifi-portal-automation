@@ -88,6 +88,13 @@ Termux's home. Logs meant for Tasker-side checks go under `/sdcard`;
 wrappers live at `~/.termux/tasker/` and are delivered via a
 `/sdcard` staging push + `su -c cp` (see `docs/android-deployment.md`).
 
+**Magisk toasts every `su` grant.** With a task invoking `su` on a
+15-minute timer, the default per-app "granted superuser rights" toast
+becomes spam. Toggle the notification (bell) icon off per app in
+Magisk's Superuser tab (Termux, Tasker, Shell) — grants stay logged,
+only the popup stops. Current Magisk has no global toggle; the flag
+is the `notification` column in `magisk.db`'s `policies` table.
+
 ## WiFi-specific findings
 
 **`cmd wifi connect-network <ssid> open`** (root) is the reliable
