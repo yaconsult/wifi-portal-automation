@@ -219,6 +219,12 @@ wifi_portal_automation.android.run_once()
    enabled** — Android does the association itself; the periodic nudge
    (below) compensates when its network selector backs off
 
+> **Tip — quiet the su toasts:** Magisk pops a "granted superuser
+> rights" toast on every `su` call — with the nudge running every
+> 15 minutes, that's a lot of popups. Magisk app → Superuser tab →
+> Termux → toggle the notification (bell) icon off (repeat for Tasker
+> and Shell). See `docs/troubleshooting.md`.
+
 ### Install Termux
 
 The Play Store version of Termux is outdated. Install from F-Droid or

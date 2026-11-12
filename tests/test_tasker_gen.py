@@ -478,6 +478,25 @@ class TestTermuxProject:
         codes = [int(a.find("code").text) for a in actions]
         assert CODE_CONNECT_WIFI in codes
 
+    def test_connect_action_continues_after_error(self):
+        """Connect to WiFi must not abort ConnectAndRun before the portal handler.
+
+        Regression: when the nudge associates before this delayed event
+        task runs — or %WIFII reads ">>> SCAN <<<" so the skip-guards miss —
+        the redundant Connect action errors; without continue-on-error the
+        task exits before MVW_RunPortalScript and the portal stays captive.
+        """
+        project = build_termux_project()
+        xml_text = generate_project_xml(project)
+        root = fromstring(xml_text)
+        tasks = root.findall("Task")
+        connect_task = next(t for t in tasks if t.find("nme").text == "MVW_ConnectAndRun")
+        connect_action = next(
+            a for a in connect_task.findall("Action") if a.find("code").text == str(CODE_CONNECT_WIFI)
+        )
+        con = connect_action.find("con")
+        assert con is not None and con.text == "true"
+
     def test_connect_and_run_has_wait(self):
         """Test that MVW_ConnectAndRun has a Wait action for DHCP."""
         project = build_termux_project()

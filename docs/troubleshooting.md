@@ -21,6 +21,8 @@
 - [HTTP requests timing out with cellular ON](#http-requests-timing-out-with-cellular-on)
 - ["Could not determine IPv4 address for interface 'wlan0'"](#could-not-determine-ipv4-address-for-interface-wlan0)
 - [`ip addr` returns "cannot bind netlink socket"](#ip-addr-returns-cannot-bind-netlink-socket-permission-denied)
+- [Connected to cmvwifi but cellular stays default](#connected-to-cmvwifi-but-cellular-stays-default-no-wifi-icon)
+- [Frequent "granted superuser" toasts](#frequent-granted-superuser-rights-toasts-every-15-min)
 - [Debugging on the phone](#debugging-on-the-phone)
 
 **General:** [Debug Mode](#debug-mode) · [Log Analysis](#log-analysis) · [Reporting Issues](#reporting-issues)
@@ -472,6 +474,34 @@ instead — the watchdog now ends
 tests `%output` for `STALE`. Reimport `MVwifiWatchdog.prj.xml`
 (one-time; it's a separate project tab).
 
+### Connected to cmvwifi but cellular stays default (no WiFi icon)
+
+**Problem**: Phone associates to cmvwifi but the status bar shows no
+WiFi icon — apps keep using cellular. `dumpsys connectivity` shows
+`CAPTIVE_PORTAL` on the WiFi network and `Active default network` is
+the mobile interface.
+
+**Cause**: `MVW_ConnectAndRun` aborted before the portal handler. The
+periodic nudge can associate first; by the time the delayed
+WiFi-Connected event task runs, `%WIFII` may read `>>> SCAN <<<` so
+the already-connected skip-guards miss, the redundant "Connect To
+WiFi" action errors, and the task exits before running the portal
+script. Runlog shows `A Err ID80.9 Connect To WiFi` + `ExitErr`.
+
+**Diagnose**:
+```bash
+adb shell 'su -c "dumpsys connectivity"' | grep -A2 "ni{WIFI"   # CAPTIVE_PORTAL?
+grep "ConnectAndRun" /sdcard/Tasker/log/runlog.txt | tail       # ExitErr at act8/9?
+```
+
+**Immediate fix**: run the portal handler manually —
+`adb shell 'su -c "/data/data/com.termux/files/home/.termux/tasker/mvwifi_portal"'`
+— then Android re-validates and promotes WiFi within seconds.
+
+**Permanent fix**: `MVwifiAuto-Termux.prj.xml` gen `511843`+ marks
+the Connect action continue-on-error. Reimport the project (full
+cycle in `docs/android-termux-setup.md`).
+
 ### Scheduled tasks run old behavior after re-import
 
 **Problem**: After re-importing updated XML, scheduled runs keep
@@ -724,6 +754,32 @@ expected — Termux cannot use `ip addr`.
 **Fix**: Use the ioctl-based detection instead. The diagnostic script
 `scripts/detect_interface.py` uses `SIOCGIFADDR` ioctl which works from
 Termux.
+
+### Frequent "granted superuser rights" toasts (every ~15 min)
+
+**Problem**: Toast notifications like "com.termux has been granted
+superuser rights" popping up on the nudge's schedule (every ~15 min),
+plus whenever Tasker runs a root shell or a desktop session calls
+`adb shell su`.
+
+**Cause**: Magisk posts a toast on every `su` grant for each app
+whose policy row has `notification=1`. The nudge, watchdog, and any
+rooted Run Shell action all trigger one. Confirmed in logcat — the
+poster is `pkg=com.topjohnwu.magisk`.
+
+**Fix**: Magisk app → **Superuser** tab → tap the app (**Termux**,
+**Tasker**, **Shell**) → toggle the **notification (bell) icon** off.
+Grants are still logged; only the popup stops. Current Magisk has no
+global toggle — it's per-app.
+
+**Identify the toasting uid from a desktop** (if unsure who's
+requesting):
+
+```bash
+adb shell 'su -c "cat /data/adb/magisk.db"' > /tmp/magisk.db
+sqlite3 /tmp/magisk.db "SELECT uid, notification FROM policies WHERE notification=1;"
+adb shell "cmd package list packages --uid <uid>"   # map uid → package
+```
 
 ### Debugging on the phone
 

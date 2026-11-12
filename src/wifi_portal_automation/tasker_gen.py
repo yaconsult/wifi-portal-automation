@@ -567,10 +567,11 @@ def http_request(
     )
 
 
-def connect_wifi(ssid: str) -> TaskerAction:
+def connect_wifi(ssid: str, continue_on_error: bool = False) -> TaskerAction:
     """Build a Connect to WiFi (code 398) action."""
     return TaskerAction(
         code=CODE_CONNECT_WIFI,
+        continue_on_error=continue_on_error,
         args=[
             TaskerArg.str_arg(0, ssid),
             TaskerArg.int_arg(1, 0),
@@ -954,8 +955,12 @@ def _build_connect_and_run_task_termux() -> TaskerTask:
             goto_action(11),
             # A8: End If
             end_if(),
-            # A9: Connect to cmvwifi
-            connect_wifi("cmvwifi"),
+            # A9: Connect to cmvwifi.  continue_on_error is REQUIRED:
+            # the nudge can associate before this delayed event task
+            # runs, and %WIFII can be ">>> SCAN <<<" (failing the A3/A6
+            # skip guards) — a redundant connect then errors and would
+            # otherwise abort the task before the portal handler.
+            connect_wifi("cmvwifi", continue_on_error=True),
             # A10: Wait 5 seconds for DHCP
             _lbl(wait(seconds=5), "Let DHCP settle"),
             # A11: Re-apply Termux protections (root; skipped on
