@@ -519,14 +519,25 @@ alongside it but never fired.
 
 **Diagnose**: `tail ~/storage/shared/Tasker/mvwifi_history.log` —
 the `[gen xxxxxx]` in each marker must match the gen id in the XML
-on `/sdcard` (`grep -o "gen [0-9a-f]*" .../MVwifiAuto-Termux.prj.xml`),
+at `/sdcard/Tasker/projects/MVwifiAuto-Termux.prj.xml` (`grep -o
+"gen [0-9a-f]*" .../MVwifiAuto-Termux.prj.xml`),
 and no `via shim` line should appear. Or run the `MVW_ShowVersion` task
 in Tasker — it flashes the imported generation. **Caveat**: a manual
 task run (or `MVW_ShowVersion`) shows the *in-memory* definition — the
 scheduled ticks can still run older persisted defs. The marker gen
 on a scheduled tick is the authoritative check.
 
-**Cause — two separate persistence traps:**
+**Also rule out a stale file**: if the persisted gen never changes no
+matter how carefully the import cycle is done, you probably imported a
+*stale copy of the XML itself* — check for duplicates before importing:
+`find /sdcard -name 'MVwifiAuto-Termux.prj.xml'` must return exactly
+`/sdcard/Tasker/projects/MVwifiAuto-Termux.prj.xml`. Copies at
+`/sdcard/` or `/sdcard/Tasker/` root are leftovers (manual pushes,
+old deploys) — the import dialog happily opens them.
+`deploy_android.sh` pushes only to `Tasker/projects/` and now removes
+strays; manual `adb push` should use the same path.
+
+**Cause — three separate persistence traps:**
 
 1. **Merge import**: importing over an existing project keeps old
    task definitions and only adds new elements.

@@ -74,6 +74,13 @@ hard way (details in `docs/lessons-learned.md`):
   silently discards a fresh import. Back/Exit, relaunch, verify.
 - Task names are global across projects — prefix yours (`MVW_` in
   the example) so unrelated project work can't collide.
+- **Beware stale XML copies** — `Tasker/projects/` is the only
+  canonical import source. Stray copies elsewhere on `/sdcard`
+  (from manual pushes or old deploys) show up in the import dialog
+  too; picking one silently restores old task definitions even
+  after a perfect delete/import/exit cycle. If markers in the task
+  history never update, check `find /sdcard -name '*.prj.xml'` for
+  duplicates before blaming the import.
 
 ## 3. Termux:Tasker wrappers — the /sdcard hop
 

@@ -65,6 +65,11 @@ fi
 adb shell "mkdir -p /sdcard/Tasker/projects/" 2>/dev/null || true
 adb push "$TASKER_XML" /sdcard/Tasker/projects/MVwifiAuto-Termux.prj.xml
 echo "  Pushed to /sdcard/Tasker/projects/MVwifiAuto-Termux.prj.xml"
+# Remove stray copies elsewhere on /sdcard — Tasker's import dialog
+# can surface them, and importing a stale copy silently restores old
+# task definitions (the file there is only an import source; Tasker
+# keeps live state internally).
+adb shell "rm -f /sdcard/MVwifiAuto-Termux.prj.xml /sdcard/Tasker/MVwifiAuto-Termux.prj.xml" 2>/dev/null || true
 echo ""
 
 # --- Step 2: Create wrapper scripts ---
