@@ -116,6 +116,16 @@ to heal itself, so the check must come from outside; (2) a watchdog
 that stats the *wrapper's* log, not the Tasker-side marker log —
 Tasker markers keep their own log fresh while Termux writes nothing.
 
+**"It was working before" is a weak signal.** Two field failures
+traced to latent bugs, not regressions: a stop-on-error connect
+action that only aborted once a newer proactive-nudge feature made
+"already associated when the event task fires" common, and the
+silent-Termux mode that only needed Termux to actually die once.
+Environmental factors (a Pixel OTA that reset
+`settings_enable_monitor_phantom_procs` and broke su until Magisk
+re-patched) extended the outage but didn't cause it — check whether
+the failing path was ever *exercised* before, not just present.
+
 ## WiFi-specific findings
 
 **`cmd wifi connect-network <ssid> open`** (root) is the reliable
