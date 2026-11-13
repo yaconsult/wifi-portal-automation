@@ -124,7 +124,11 @@ silent-Termux mode that only needed Termux to actually die once.
 Environmental factors (a Pixel OTA that reset
 `settings_enable_monitor_phantom_procs` and broke su until Magisk
 re-patched) extended the outage but didn't cause it — check whether
-the failing path was ever *exercised* before, not just present.
+the failing path was ever *exercised* before, not just present. And
+attribute honestly: every defect in that outage was in our generated
+project and monitoring design, not the platform — including one in
+the fix itself (an invented `<con>` element Tasker silently dropped;
+the real flag is `<se>false</se>`).
 
 ## WiFi-specific findings
 
