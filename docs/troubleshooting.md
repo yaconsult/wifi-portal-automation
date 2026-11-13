@@ -17,6 +17,7 @@
 - [Phone takes 15-30 minutes to join cmvwifi](#phone-takes-15-30-minutes-to-join-cmvwifi)
 - [Connected to cmvwifi but no internet for a long time](#connected-to-cmvwifi-but-no-internet-for-a-long-time)
 - [Termux plugin times out (error code 2)](#termux-plugin-times-out-plugin-did-not-respond-before-timing-out-error-code-2)
+- [Plugin reports OK but wrappers never run](#plugin-reports-ok-but-termux-wrappers-never-execute-dead-termux)
 - [Delay between "Portal handling complete" and working internet](#delay-between-portal-handling-complete-and-working-internet)
 - [HTTP requests timing out with cellular ON](#http-requests-timing-out-with-cellular-on)
 - ["Could not determine IPv4 address for interface 'wlan0'"](#could-not-determine-ipv4-address-for-interface-wlan0)
@@ -498,9 +499,13 @@ grep "ConnectAndRun" /sdcard/Tasker/log/runlog.txt | tail       # ExitErr at act
 `adb shell 'su -c "/data/data/com.termux/files/home/.termux/tasker/mvwifi_portal"'`
 — then Android re-validates and promotes WiFi within seconds.
 
-**Permanent fix**: `MVwifiAuto-Termux.prj.xml` gen `511843`+ marks
-the Connect action continue-on-error. Reimport the project (full
-cycle in `docs/android-termux-setup.md`).
+**Permanent fix**: `MVwifiAuto-Termux.prj.xml` gen `0e0b7f`+ marks
+the Connect action continue-on-error **via `<se>false</se>`** —
+Tasker's real serialization. (Earlier XML emitted `<con>true</con>`,
+which Tasker silently drops on import — the flag looked right in the
+file but did nothing; verify the fix landed by grepping Tasker's
+persisted `autobackup.xml` for `<se>false</se>`, not the pushed file.)
+Reimport the project (full cycle in `docs/android-termux-setup.md`).
 
 ### Scheduled tasks run old behavior after re-import
 
@@ -686,11 +691,13 @@ The last grant lets the wrapper script re-disable the phantom
 killer itself on every run (self-heal after OS updates). The
 wrapper also holds `termux-wake-lock` during the run.
 
-On rooted phones, `MVW_ConnectAndRun` additionally runs a root shell
-action (A7) before the plugin call that re-applies all three
-protections on every trigger — so a regressed setting is repaired
-before it can cause a failure. The action has
-continue-task-after-error set, so unrooted phones skip it safely.
+On rooted phones, a root shell self-heal action runs before every
+Termux plugin call (all nudge tasks, `MVW_ConnectAndRun`, and the
+per-network portal tasks) that re-applies all three protections on
+every trigger — so a regressed setting is repaired before it can
+cause a failure — and resurrects Termux itself if its process is
+dead. The action has continue-task-after-error set, so unrooted
+phones skip it safely.
 
 Both settings live in `/data` and survive full-image flashes
 done without the `-w` wipe flag, but verify them after each
@@ -704,6 +711,40 @@ adb shell settings get global settings_enable_monitor_phantom_procs   # want: fa
 
 Also exempt Termux via the UI as a belt-and-suspenders measure:
 Settings → Apps → Termux → Battery → **Unrestricted**.
+
+### Plugin reports OK but Termux wrappers never execute (dead Termux)
+
+**Problem**: Tasker tasks run on schedule, the Termux:Tasker plugin
+action logs `A OK`, Tasker keeps writing its `| tasker |` history
+markers — but no `| termux |` markers or nudge-log lines appear for
+hours. Portal never handled, nudges never run, and nothing looks
+wrong in the runlog.
+
+**Cause**: The Termux process itself is dead (killed by Android or
+an OTA; observed post-Pixel-update ~2026-11-11). The plugin reports
+OK because the *intent* was delivered — it does not verify that
+Termux then executes anything. This is the silent sibling of the
+error-code-2 timeout above: a dead Termux doesn't even time out.
+
+**Diagnose**:
+
+```bash
+adb shell 'su -c "pidof com.termux"'   # empty = Termux dead
+# Tasker markers fresh but nudge log stale:
+adb shell 'stat -c "%y %n" /sdcard/Tasker/mvwifi_history.log /sdcard/mvwifi_nudge.log'
+```
+
+**Fix**: nothing to do on a current build — the root self-heal
+action before every plugin call now resurrects Termux
+(`pidof com.termux || am start -n com.termux/.app.TermuxActivity`,
+gen `e354c9`+). To recover immediately, launch Termux once or
+`adb shell 'am start -n com.termux/.app.TermuxActivity'`.
+
+**Why the watchdog didn't catch this**: the old watchdog only
+checked the history log's mtime, which Tasker markers kept fresh.
+As of gen `e354c9` it also stats `mvwifi_nudge.log` and alerts when
+the Termux side goes quiet, logging `| watchdog | stale: termux` to
+the history log.
 
 ### Delay between "Portal handling complete" and working internet
 

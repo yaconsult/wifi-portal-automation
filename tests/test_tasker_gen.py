@@ -329,7 +329,12 @@ class TestXmlGeneration:
         assert CODE_END_IF in codes
 
     def test_continue_on_error_attribute(self):
-        """Test that continue_on_error actions have <con>true</con>."""
+        """continue_on_error serializes as <se>false</se> (Tasker's stop-on-error flag).
+
+        Tasker's own export format uses <se>false</se>, not <con> — an
+        unrecognized element is silently dropped on import and the flag
+        never takes effect.
+        """
         project = build_mvwifi_project()
         xml_text = generate_project_xml(project)
         root = fromstring(xml_text)
@@ -337,9 +342,9 @@ class TestXmlGeneration:
         tasks = root.findall("Task")
         handle_portal = next(t for t in tasks if t.find("nme").text == "HandlePortal")
         actions = handle_portal.findall("Action")
-        con_actions = [a for a in actions if a.find("con") is not None]
-        assert len(con_actions) > 0
-        assert con_actions[0].find("con").text == "true"
+        se_actions = [a for a in actions if a.find("se") is not None]
+        assert len(se_actions) > 0
+        assert se_actions[0].find("se").text == "false"
 
     def test_project_tids(self):
         """Test that the project tids field lists all task IDs."""
@@ -494,8 +499,8 @@ class TestTermuxProject:
         connect_action = next(
             a for a in connect_task.findall("Action") if a.find("code").text == str(CODE_CONNECT_WIFI)
         )
-        con = connect_action.find("con")
-        assert con is not None and con.text == "true"
+        se = connect_action.find("se")
+        assert se is not None and se.text == "false"
 
     def test_connect_and_run_has_wait(self):
         """Test that MVW_ConnectAndRun has a Wait action for DHCP."""
@@ -547,7 +552,7 @@ class TestTermuxProject:
         assert len(shell_actions) == 1
         shell = shell_actions[0]
         # Must continue on error so unrooted devices keep working
-        assert shell.find("con") is not None and shell.find("con").text == "true"
+        assert shell.find("se") is not None and shell.find("se").text == "false"
         str_args = shell.findall("Str")
         assert any(
             "settings_enable_monitor_phantom_procs" in (s.text or "")
@@ -769,10 +774,15 @@ class TestTermuxProject:
         body = tostring(task, encoding="unicode")
         assert "mvwifi_history.log" in body
         assert "86400" in body
+        # Checks the termux-side nudge log too — Tasker markers alone
+        # keep the history fresh when a dead Termux runs nothing.
+        assert "mvwifi_nudge.log" in body
+        assert "NAGE" in body
         # Tasker fails a Run Shell action on a nonzero exit: the
         # fresh-log path must still exit 0 (if/fi, not a trailing
         # bare test or &&-chain that returns 1).
-        assert "if [ $AGE -gt 86400 ]; then echo STALE; fi" in body
+        assert 'if [ -n "$DETAIL" ]' in body
+        assert "echo STALE; fi" in body
 
     def test_costco_connect_task_runs_wrapper(self):
         """MVW_CostcoConnect calls the costco_portal Termux wrapper."""
@@ -822,8 +832,8 @@ class TestTermuxProject:
         assert time.find("repval").text == "15"
 
     def test_nudge_task_runs_wrapper(self):
-        """MVW_NudgeWifi logs a marker, then calls wifi_nudge with the
-        cmvwifi preferred + xfinitywifi fallback arguments."""
+        """MVW_NudgeWifi: marker, self-heal/resurrect, then wifi_nudge
+        with the cmvwifi preferred + xfinitywifi fallback arguments."""
         project = build_termux_project()
         xml_text = generate_project_xml(project)
         root = fromstring(xml_text)
@@ -836,10 +846,15 @@ class TestTermuxProject:
         # A1: history marker Write File
         assert actions[0].find("code").text == str(CODE_WRITE_FILE)
         assert "mvwifi_history.log" in actions[0].find("Str").text
-        # A2: Termux plugin invoking wifi_nudge
-        assert actions[1].find("code").text == str(CODE_TERMUX_TASK)
+        # A2: root self-heal — protections + resurrect a dead Termux
+        # (plugin calls report OK even when Termux never runs)
+        assert actions[1].find("code").text == str(CODE_RUN_SHELL)
+        shell_body = tostring(actions[1], encoding="unicode")
+        assert "pidof com.termux" in shell_body
+        # A3: Termux plugin invoking wifi_nudge
+        assert actions[2].find("code").text == str(CODE_TERMUX_TASK)
         bundle_xml = tostring(
-            actions[1].find("Bundle"), encoding="unicode"
+            actions[2].find("Bundle"), encoding="unicode"
         )
         assert "wifi_nudge" in bundle_xml
         assert "--preferred" in bundle_xml
@@ -855,9 +870,10 @@ class TestTermuxProject:
         )
         actions = task.findall("Action")
         assert actions[0].find("code").text == str(CODE_WRITE_FILE)
-        assert actions[1].find("code").text == str(CODE_TERMUX_TASK)
+        assert actions[1].find("code").text == str(CODE_RUN_SHELL)
+        assert actions[2].find("code").text == str(CODE_TERMUX_TASK)
         bundle_xml = tostring(
-            actions[1].find("Bundle"), encoding="unicode"
+            actions[2].find("Bundle"), encoding="unicode"
         )
         assert "wifi_nudge" in bundle_xml
         assert "--ssid xfinitywifi" in bundle_xml

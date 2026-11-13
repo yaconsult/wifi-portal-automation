@@ -66,6 +66,16 @@ association to task start under doze. Fine for portal handling
 the phone" checks — but throttle the work behind it, since unlock
 bursts fire repeatedly (see `--min-interval` on `wpa-nudge`).
 
+**Continue-on-error serializes as `<se>false</se>`, and Tasker
+drops unknown elements silently.** The "Continue Task After Error"
+flag lives at the action level as `<se>false</se>` (stop-on-error =
+false), confirmed from Tasker-authored exports. A plausible-but-
+wrong element (`<con>true</con>`) imports without complaint and is
+simply absent from Tasker's persisted state — the project gen stamp
+can't catch that. Verify serialization changes by grepping
+`/sdcard/Tasker/autobackup.xml` for the *element*, not the version
+stamp.
+
 ## Termux / Termux:Tasker on modern Android
 
 **Phantom process killer kills Termux children.** Android 12+
@@ -94,6 +104,17 @@ becomes spam. Toggle the notification (bell) icon off per app in
 Magisk's Superuser tab (Termux, Tasker, Shell) — grants stay logged,
 only the popup stops. Current Magisk has no global toggle; the flag
 is the `notification` column in `magisk.db`'s `policies` table.
+
+**A dead Termux fails silently — the plugin still reports OK.**
+Termux:Tasker acknowledges the intent delivery, not wrapper
+execution; while Termux's process is dead, tasks log `A OK` and
+nothing runs (observed ~20h of silent no-ops while every other
+signal looked healthy). Defenses: (1) a root Run Shell before each
+plugin call that resurrects Termux (`pidof com.termux || am start -n
+com.termux/.app.TermuxActivity`) — a dead Termux can't run a wrapper
+to heal itself, so the check must come from outside; (2) a watchdog
+that stats the *wrapper's* log, not the Tasker-side marker log —
+Tasker markers keep their own log fresh while Termux writes nothing.
 
 ## WiFi-specific findings
 

@@ -258,7 +258,11 @@ def _add_action(task_elem: Element, index: int, action: TaskerAction) -> None:
     """Add an action element to *task_elem*."""
     act = SubElement(task_elem, "Action", {"sr": f"act{index}", "ve": "7"})
     if action.continue_on_error:
-        SubElement(act, "con").text = "true"
+        # Tasker's "Continue Task After Error" serializes as <se>false</se>
+        # (stop-on-error=false), verified against Tasker's own persisted
+        # export format.  An unrecognized element (e.g. <con>) is silently
+        # dropped on import — the action then aborts the task on error.
+        SubElement(act, "se").text = "false"
     SubElement(act, "code").text = str(action.code)
     if action.label:
         SubElement(act, "label").text = action.label
@@ -630,16 +634,21 @@ def termux_self_heal() -> TaskerAction:
     """Build a root Run Shell action that re-applies Termux protections.
 
     Re-adds Termux to the battery whitelist, disables the phantom
-    process killer, and grants WRITE_SECURE_SETTINGS (which lets the
-    mvwifi_portal wrapper self-heal that setting on every run).
-    Idempotent and safe to run on every trigger.  continue_on_error
-    keeps the task working on unrooted phones — the protections
-    simply can't be re-applied without root.
+    process killer, grants WRITE_SECURE_SETTINGS (which lets the
+    mvwifi_portal wrapper self-heal that setting on every run), and
+    resurrects Termux when its process is dead — a dead Termux can
+    never run a wrapper to self-heal, so this root shell (which needs
+    no Termux) is the only path back.  Idempotent and safe to run on
+    every trigger.  continue_on_error keeps the task working on
+    unrooted phones — the protections simply can't be re-applied
+    without root.
     """
     return run_shell(
         "dumpsys deviceidle whitelist +com.termux; "
         "settings put global settings_enable_monitor_phantom_procs false; "
-        "pm grant com.termux android.permission.WRITE_SECURE_SETTINGS",
+        "pm grant com.termux android.permission.WRITE_SECURE_SETTINGS; "
+        "pidof com.termux >/dev/null 2>&1 || "
+        "{ am start -n com.termux/.app.TermuxActivity >/dev/null 2>&1; sleep 3; }",
         timeout=15,
         use_root=True,
         continue_on_error=True,
@@ -1112,7 +1121,15 @@ def _build_cmvwifi_nudge_task() -> TaskerTask:
                 ),
                 "History marker — proves Tasker fired even if Termux fails",
             ),
-            # A2: Run the nudge script.  A short timeout is fine —
+            # A2: Re-apply Termux protections + resurrect a dead
+            # Termux before the plugin call — plugin actions report
+            # OK even when Termux never executes the wrapper.
+            _lbl(
+                termux_self_heal(),
+                "Re-apply Termux protections + revive Termux (root; "
+                "no-op unrooted)",
+            ),
+            # A3: Run the nudge script.  A short timeout is fine —
             # background mode keeps the script running regardless.
             _lbl(
                 termux_task(
@@ -1173,6 +1190,13 @@ def _build_xfinity_nudge_task() -> TaskerTask:
                     "%TIMES | tasker | MVW_NudgeXfinity fired [gen @MWGEN@]",
                 ),
                 "History marker — proves Tasker fired even if Termux fails",
+            ),
+            # Re-apply Termux protections + resurrect a dead Termux
+            # before the plugin call.
+            _lbl(
+                termux_self_heal(),
+                "Re-apply Termux protections + revive Termux (root; "
+                "no-op unrooted)",
             ),
             _lbl(
                 termux_task(
@@ -1315,6 +1339,13 @@ def _build_unlock_nudge_task() -> TaskerTask:
                 ),
                 "History marker — proves Tasker fired even if Termux fails",
             ),
+            # Re-apply Termux protections + resurrect a dead Termux
+            # before the plugin call.
+            _lbl(
+                termux_self_heal(),
+                "Re-apply Termux protections + revive Termux (root; "
+                "no-op unrooted)",
+            ),
             _lbl(
                 termux_task(
                     "wifi_nudge",
@@ -1359,7 +1390,10 @@ def build_watchdog_project() -> TaskerProject:
     separately so it survives that deletion: every 6h it stats the
     history log's mtime and posts a Notify if nothing has written
     for >24h (long enough to tolerate the phone being off
-    overnight).
+    overnight).  It also stats the termux-side nudge log — Tasker
+    markers keep the history fresh even when a dead Termux runs
+    nothing, so both ages are checked; which side went silent is
+    recorded as a ``watchdog | stale`` line in the history log.
 
     Task: ``MVW_HistoryWatchdog`` (id=200)
     Profile: ``MVW History Watchdog`` (id=20) — Time every 6h
@@ -1371,12 +1405,22 @@ def build_watchdog_project() -> TaskerProject:
             _lbl(
                 run_shell(
                     "H=/sdcard/Tasker/mvwifi_history.log; "
-                    "AGE=$(( $(date +%s) - $(stat -c %Y $H "
+                    "N=/sdcard/mvwifi_nudge.log; "
+                    "HAGE=$(( $(date +%s) - $(stat -c %Y $H "
                     "2>/dev/null || echo 0) )); "
-                    "if [ $AGE -gt 86400 ]; then echo STALE; fi",
+                    "NAGE=$(( $(date +%s) - $(stat -c %Y $N "
+                    "2>/dev/null || echo 0) )); "
+                    "DETAIL=; "
+                    "if [ $HAGE -gt 86400 ]; then DETAIL=tasker; fi; "
+                    "if [ $NAGE -gt 86400 ]; then "
+                    "DETAIL=\"$DETAIL termux\"; fi; "
+                    "if [ -n \"$DETAIL\" ]; then "
+                    "echo \"$(date +%s) | watchdog | stale:$DETAIL\" >> $H; "
+                    "echo STALE; fi",
                     output_var="%output",
                 ),
-                "Log age check — echoes STALE if no writes for >24h",
+                "Log age check — echoes STALE if Tasker markers or "
+                "Termux nudges go quiet for >24h",
             ),
             _lbl(
                 if_condition("%output", "STALE"),
@@ -1384,8 +1428,10 @@ def build_watchdog_project() -> TaskerProject:
             ),
             notify(
                 "MVwifiAuto silent",
-                "No Tasker/Termux markers in >24h — check the "
-                "MVwifiAuto-Termux project is still imported",
+                "No Tasker/Termux activity in >24h — check "
+                "MVwifiAuto-Termux is still imported; if only Termux "
+                "markers are stale, Termux itself may be dead (see "
+                "'watchdog | stale' lines in mvwifi_history.log)",
             ),
             flash("MVwifiAuto watchdog: history log stale >24h"),
             end_if(),

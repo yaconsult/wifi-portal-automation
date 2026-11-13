@@ -140,7 +140,7 @@
 			<code>410</code>
 			<label>History marker — proves Tasker fired even if Termux fails</label>
 			<Str sr="arg0" ve="3">Tasker/mvwifi_history.log</Str>
-			<Str sr="arg1" ve="3">%TIMES | tasker | MVW_ConnectAndRun fired [gen 511843]</Str>
+			<Str sr="arg1" ve="3">%TIMES | tasker | MVW_ConnectAndRun fired [gen e354c9]</Str>
 			<Int sr="arg2" val="1" />
 			<Int sr="arg3" val="1" />
 			<Int sr="arg4" val="0" />
@@ -192,7 +192,7 @@
 			<code>38</code>
 		</Action>
 		<Action sr="act8" ve="7">
-			<con>true</con>
+			<se>false</se>
 			<code>398</code>
 			<Str sr="arg0" ve="3">cmvwifi</Str>
 			<Int sr="arg1" val="0" />
@@ -210,10 +210,10 @@
 			<Int sr="arg4" val="0" />
 		</Action>
 		<Action sr="act10" ve="7">
-			<con>true</con>
+			<se>false</se>
 			<code>123</code>
 			<label>Re-apply Termux protections (root; no-op unrooted)</label>
-			<Str sr="arg0" ve="3">dumpsys deviceidle whitelist +com.termux; settings put global settings_enable_monitor_phantom_procs false; pm grant com.termux android.permission.WRITE_SECURE_SETTINGS</Str>
+			<Str sr="arg0" ve="3">dumpsys deviceidle whitelist +com.termux; settings put global settings_enable_monitor_phantom_procs false; pm grant com.termux android.permission.WRITE_SECURE_SETTINGS; pidof com.termux &gt;/dev/null 2&gt;&amp;1 || { am start -n com.termux/.app.TermuxActivity &gt;/dev/null 2&gt;&amp;1; sleep 3; }</Str>
 			<Int sr="arg1" val="15" />
 			<Int sr="arg2" val="1" />
 			<Str sr="arg3" ve="3" />
@@ -252,16 +252,16 @@
 			<code>410</code>
 			<label>History marker — proves Tasker fired even if Termux fails</label>
 			<Str sr="arg0" ve="3">Tasker/mvwifi_history.log</Str>
-			<Str sr="arg1" ve="3">%TIMES | tasker | MVW_CostcoConnect fired [gen 511843]</Str>
+			<Str sr="arg1" ve="3">%TIMES | tasker | MVW_CostcoConnect fired [gen e354c9]</Str>
 			<Int sr="arg2" val="1" />
 			<Int sr="arg3" val="1" />
 			<Int sr="arg4" val="0" />
 		</Action>
 		<Action sr="act1" ve="7">
-			<con>true</con>
+			<se>false</se>
 			<code>123</code>
 			<label>Re-apply Termux protections (root; no-op unrooted)</label>
-			<Str sr="arg0" ve="3">dumpsys deviceidle whitelist +com.termux; settings put global settings_enable_monitor_phantom_procs false; pm grant com.termux android.permission.WRITE_SECURE_SETTINGS</Str>
+			<Str sr="arg0" ve="3">dumpsys deviceidle whitelist +com.termux; settings put global settings_enable_monitor_phantom_procs false; pm grant com.termux android.permission.WRITE_SECURE_SETTINGS; pidof com.termux &gt;/dev/null 2&gt;&amp;1 || { am start -n com.termux/.app.TermuxActivity &gt;/dev/null 2&gt;&amp;1; sleep 3; }</Str>
 			<Int sr="arg1" val="15" />
 			<Int sr="arg2" val="1" />
 			<Str sr="arg3" ve="3" />
@@ -311,12 +311,26 @@
 			<code>410</code>
 			<label>History marker — proves Tasker fired even if Termux fails</label>
 			<Str sr="arg0" ve="3">Tasker/mvwifi_history.log</Str>
-			<Str sr="arg1" ve="3">%TIMES | tasker | MVW_NudgeWifi fired [gen 511843]</Str>
+			<Str sr="arg1" ve="3">%TIMES | tasker | MVW_NudgeWifi fired [gen e354c9]</Str>
 			<Int sr="arg2" val="1" />
 			<Int sr="arg3" val="1" />
 			<Int sr="arg4" val="0" />
 		</Action>
 		<Action sr="act1" ve="7">
+			<se>false</se>
+			<code>123</code>
+			<label>Re-apply Termux protections + revive Termux (root; no-op unrooted)</label>
+			<Str sr="arg0" ve="3">dumpsys deviceidle whitelist +com.termux; settings put global settings_enable_monitor_phantom_procs false; pm grant com.termux android.permission.WRITE_SECURE_SETTINGS; pidof com.termux &gt;/dev/null 2&gt;&amp;1 || { am start -n com.termux/.app.TermuxActivity &gt;/dev/null 2&gt;&amp;1; sleep 3; }</Str>
+			<Int sr="arg1" val="15" />
+			<Int sr="arg2" val="1" />
+			<Str sr="arg3" ve="3" />
+			<Str sr="arg4" ve="3" />
+			<Str sr="arg5" ve="3" />
+			<Int sr="arg6" val="1" />
+			<Int sr="arg7" val="0" />
+			<Int sr="arg8" val="0" />
+		</Action>
+		<Action sr="act2" ve="7">
 			<code>1256900802</code>
 			<label>Open-preferred nudge (cmvwifi/MVwifi/Costco) + xfinity promotion (root) — runs ~/.termux/tasker/wifi_nudge</label>
 			<Bundle sr="arg0">
@@ -351,12 +365,26 @@
 			<code>410</code>
 			<label>History marker — proves Tasker fired even if Termux fails</label>
 			<Str sr="arg0" ve="3">Tasker/mvwifi_history.log</Str>
-			<Str sr="arg1" ve="3">%TIMES | tasker | MVW_NudgeXfinity fired [gen 511843]</Str>
+			<Str sr="arg1" ve="3">%TIMES | tasker | MVW_NudgeXfinity fired [gen e354c9]</Str>
 			<Int sr="arg2" val="1" />
 			<Int sr="arg3" val="1" />
 			<Int sr="arg4" val="0" />
 		</Action>
 		<Action sr="act1" ve="7">
+			<se>false</se>
+			<code>123</code>
+			<label>Re-apply Termux protections + revive Termux (root; no-op unrooted)</label>
+			<Str sr="arg0" ve="3">dumpsys deviceidle whitelist +com.termux; settings put global settings_enable_monitor_phantom_procs false; pm grant com.termux android.permission.WRITE_SECURE_SETTINGS; pidof com.termux &gt;/dev/null 2&gt;&amp;1 || { am start -n com.termux/.app.TermuxActivity &gt;/dev/null 2&gt;&amp;1; sleep 3; }</Str>
+			<Int sr="arg1" val="15" />
+			<Int sr="arg2" val="1" />
+			<Str sr="arg3" ve="3" />
+			<Str sr="arg4" ve="3" />
+			<Str sr="arg5" ve="3" />
+			<Int sr="arg6" val="1" />
+			<Int sr="arg7" val="0" />
+			<Int sr="arg8" val="0" />
+		</Action>
+		<Action sr="act2" ve="7">
 			<code>1256900802</code>
 			<label>xfinitywifi fallback join, autojoin off, defers to preferred SSIDs (root) — runs ~/.termux/tasker/wifi_nudge</label>
 			<Bundle sr="arg0">
@@ -390,7 +418,7 @@
 		<Action sr="act0" ve="7">
 			<code>548</code>
 			<label>Shows the imported project's generation stamp</label>
-			<Str sr="arg0" ve="3">MVwifiAuto-Termux gen 511843</Str>
+			<Str sr="arg0" ve="3">MVwifiAuto-Termux gen e354c9</Str>
 			<Int sr="arg1" val="0" />
 		</Action>
 	</Task>
@@ -402,16 +430,16 @@
 			<code>410</code>
 			<label>History marker — proves Tasker fired even if Termux fails</label>
 			<Str sr="arg0" ve="3">Tasker/mvwifi_history.log</Str>
-			<Str sr="arg1" ve="3">%TIMES | tasker | MVW_SHGuestCapture fired [gen 511843]</Str>
+			<Str sr="arg1" ve="3">%TIMES | tasker | MVW_SHGuestCapture fired [gen e354c9]</Str>
 			<Int sr="arg2" val="1" />
 			<Int sr="arg3" val="1" />
 			<Int sr="arg4" val="0" />
 		</Action>
 		<Action sr="act1" ve="7">
-			<con>true</con>
+			<se>false</se>
 			<code>123</code>
 			<label>Re-apply Termux protections (root; no-op unrooted)</label>
-			<Str sr="arg0" ve="3">dumpsys deviceidle whitelist +com.termux; settings put global settings_enable_monitor_phantom_procs false; pm grant com.termux android.permission.WRITE_SECURE_SETTINGS</Str>
+			<Str sr="arg0" ve="3">dumpsys deviceidle whitelist +com.termux; settings put global settings_enable_monitor_phantom_procs false; pm grant com.termux android.permission.WRITE_SECURE_SETTINGS; pidof com.termux &gt;/dev/null 2&gt;&amp;1 || { am start -n com.termux/.app.TermuxActivity &gt;/dev/null 2&gt;&amp;1; sleep 3; }</Str>
 			<Int sr="arg1" val="15" />
 			<Int sr="arg2" val="1" />
 			<Str sr="arg3" ve="3" />
@@ -461,12 +489,26 @@
 			<code>410</code>
 			<label>History marker — proves Tasker fired even if Termux fails</label>
 			<Str sr="arg0" ve="3">Tasker/mvwifi_history.log</Str>
-			<Str sr="arg1" ve="3">%TIMES | tasker | MVW_UnlockNudge fired [gen 511843]</Str>
+			<Str sr="arg1" ve="3">%TIMES | tasker | MVW_UnlockNudge fired [gen e354c9]</Str>
 			<Int sr="arg2" val="1" />
 			<Int sr="arg3" val="1" />
 			<Int sr="arg4" val="0" />
 		</Action>
 		<Action sr="act1" ve="7">
+			<se>false</se>
+			<code>123</code>
+			<label>Re-apply Termux protections + revive Termux (root; no-op unrooted)</label>
+			<Str sr="arg0" ve="3">dumpsys deviceidle whitelist +com.termux; settings put global settings_enable_monitor_phantom_procs false; pm grant com.termux android.permission.WRITE_SECURE_SETTINGS; pidof com.termux &gt;/dev/null 2&gt;&amp;1 || { am start -n com.termux/.app.TermuxActivity &gt;/dev/null 2&gt;&amp;1; sleep 3; }</Str>
+			<Int sr="arg1" val="15" />
+			<Int sr="arg2" val="1" />
+			<Str sr="arg3" ve="3" />
+			<Str sr="arg4" ve="3" />
+			<Str sr="arg5" ve="3" />
+			<Int sr="arg6" val="1" />
+			<Int sr="arg7" val="0" />
+			<Int sr="arg8" val="0" />
+		</Action>
+		<Action sr="act2" ve="7">
 			<code>1256900802</code>
 			<label>Throttled open-preferred nudge on unlock (root) — runs ~/.termux/tasker/wifi_nudge</label>
 			<Bundle sr="arg0">
