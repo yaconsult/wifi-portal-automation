@@ -450,9 +450,13 @@ is absent from Tasker's saved state.
 
 **Fix**: Re-import `MVwifiAuto-Termux.prj.xml` (full procedure in
 `docs/android-termux-setup.md`). The separate **MVwifiWatchdog**
-project (one-time import) catches exactly this: every 6h it
-checks the history log's mtime and posts a notification if no
-markers have been written for >24h.
+project (one-time import) catches exactly this: hourly it stats
+the history and nudge logs and posts a notification when Tasker
+markers go quiet for >24h (`tasker-silent`), when Tasker is fresh
+but the Termux side is quiet >1h (`termux-silent`), or when recent
+nudge results show a `no_root` streak (`no_root-streak`). Findings
+land in `/sdcard/Tasker/mvwifi_watchdog.log` — a separate file so
+the watchdog never refreshes the mtime it monitors.
 
 ### "Tasker Action Error" notification — watchdog `A Err` in runlog
 
@@ -745,15 +749,19 @@ adb shell 'stat -c "%y %n" /sdcard/Tasker/mvwifi_history.log /sdcard/mvwifi_nudg
 
 **Fix**: nothing to do on a current build — the root self-heal
 action before every plugin call now resurrects Termux
-(`pidof com.termux || am start -n com.termux/.app.TermuxActivity`,
-gen `e354c9`+). To recover immediately, launch Termux once or
-`adb shell 'am start -n com.termux/.app.TermuxActivity'`.
+(`pidof com.termux || am startservice -n com.termux/.app.TermuxService`
+with an activity-launch fallback, gen `434d1e`+). To recover
+immediately, launch Termux once or
+`adb shell 'am startservice -n com.termux/.app.TermuxService'`.
 
 **Why the watchdog didn't catch this**: the old watchdog only
 checked the history log's mtime, which Tasker markers kept fresh.
-As of gen `e354c9` it also stats `mvwifi_nudge.log` and alerts when
-the Termux side goes quiet, logging `| watchdog | stale: termux` to
-the history log.
+It now also stats `mvwifi_nudge.log` and alerts within ~1–2h when
+the Termux side goes quiet while Tasker stays active, logging
+`| watchdog | stale: termux-silent` to
+`/sdcard/Tasker/mvwifi_watchdog.log`. (An earlier version still
+required >24h absolute silence, which could not detect a ~20h
+outage like this one.)
 
 ### Delay between "Portal handling complete" and working internet
 
