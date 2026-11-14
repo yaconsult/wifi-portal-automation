@@ -721,7 +721,7 @@ class TestTermuxProject:
         assert prof.find("mid0").text == "200"
         tctx = prof.find("Time")
         assert tctx.find("rep").text == "1"  # hours
-        assert tctx.find("repval").text == "6"
+        assert tctx.find("repval").text == "1"  # hourly cadence
         tasks = root.findall("Task")
         assert len(tasks) == 1
         task = tasks[0]
@@ -737,6 +737,15 @@ class TestTermuxProject:
         # keep the history fresh when a dead Termux runs nothing.
         assert "mvwifi_nudge.log" in body
         assert "NAGE" in body
+        # The termux check is RELATIVE: Tasker fresh + termux stale
+        # >1h — a 24h absolute threshold can't catch a ~20h outage.
+        assert "HAGE -lt 3600" in body
+        assert "NAGE -gt 3600" in body
+        # no_root streak check (root broken but logs stay fresh).
+        assert "no_root" in body
+        # Findings go to a separate log — writing them to the
+        # monitored history log would refresh the mtime under test.
+        assert "mvwifi_watchdog.log" in body
         # Tasker fails a Run Shell action on a nonzero exit: the
         # fresh-log path must still exit 0 (if/fi, not a trailing
         # bare test or &&-chain that returns 1).

@@ -10,7 +10,7 @@
 			<fh>-1</fh>
 			<fm>-1</fm>
 			<rep>1</rep>
-			<repval>6</repval>
+			<repval>1</repval>
 			<th>-1</th>
 			<tm>-1</tm>
 		</Time>
@@ -26,8 +26,8 @@
 		<rty>2</rty>
 		<Action sr="act0" ve="7">
 			<code>123</code>
-			<label>Log age check — echoes STALE if Tasker markers or Termux nudges go quiet for &gt;24h</label>
-			<Str sr="arg0" ve="3">H=/sdcard/Tasker/mvwifi_history.log; N=/sdcard/mvwifi_nudge.log; HAGE=$(( $(date +%s) - $(stat -c %Y $H 2&gt;/dev/null || echo 0) )); NAGE=$(( $(date +%s) - $(stat -c %Y $N 2&gt;/dev/null || echo 0) )); DETAIL=; if [ $HAGE -gt 86400 ]; then DETAIL=tasker; fi; if [ $NAGE -gt 86400 ]; then DETAIL="$DETAIL termux"; fi; if [ -n "$DETAIL" ]; then echo "$(date +%s) | watchdog | stale:$DETAIL" &gt;&gt; $H; echo STALE; fi</Str>
+			<label>Staleness check — Tasker-fresh/Termux-stale &gt;1h, both &gt;24h, or a no_root streak echoes STALE</label>
+			<Str sr="arg0" ve="3">H=/sdcard/Tasker/mvwifi_history.log; N=/sdcard/mvwifi_nudge.log; W=/sdcard/Tasker/mvwifi_watchdog.log; NOW=$(date +%s); HAGE=$(( NOW - $(stat -c %Y $H 2&gt;/dev/null || echo 0) )); NAGE=$(( NOW - $(stat -c %Y $N 2&gt;/dev/null || echo 0) )); DETAIL=; if [ $HAGE -lt 3600 ] &amp;&amp; [ $NAGE -gt 3600 ]; then DETAIL=termux-silent; fi; if [ $HAGE -gt 86400 ]; then DETAIL="$DETAIL tasker-silent"; fi; if [ $(tail -20 $N 2&gt;/dev/null | grep -c no_root) -ge 3 ]; then DETAIL="$DETAIL no_root-streak"; fi; if [ -n "$DETAIL" ]; then echo "$NOW | watchdog | stale:$DETAIL" &gt;&gt; $W; echo STALE; fi</Str>
 			<Int sr="arg1" val="10" />
 			<Int sr="arg2" val="0" />
 			<Str sr="arg3" ve="3">%output</Str>
@@ -39,7 +39,7 @@
 		</Action>
 		<Action sr="act1" ve="7">
 			<code>37</code>
-			<label>Alert only when the log has gone quiet</label>
+			<label>Alert only when something has gone quiet</label>
 			<ConditionList sr="if">
 				<Condition sr="c0" ve="3">
 					<lhs>%output</lhs>
@@ -51,7 +51,7 @@
 		<Action sr="act2" ve="7">
 			<code>523</code>
 			<Str sr="arg0" ve="3">MVwifiAuto silent</Str>
-			<Str sr="arg1" ve="3">No Tasker/Termux activity in &gt;24h — check MVwifiAuto-Termux is still imported; if only Termux markers are stale, Termux itself may be dead (see 'watchdog | stale' lines in mvwifi_history.log)</Str>
+			<Str sr="arg1" ve="3">Stale activity detected — details in 'watchdog | stale' lines of /sdcard/Tasker/mvwifi_watchdog.log (termux-silent = dead Termux; tasker-silent = project gone; no_root-streak = root broken)</Str>
 			<Img sr="arg2" ve="2" />
 			<Int sr="arg3" val="0" />
 			<Int sr="arg4" val="0" />
@@ -68,7 +68,7 @@
 		</Action>
 		<Action sr="act3" ve="7">
 			<code>548</code>
-			<Str sr="arg0" ve="3">MVwifiAuto watchdog: history log stale &gt;24h</Str>
+			<Str sr="arg0" ve="3">MVwifiAuto watchdog: stale activity detected</Str>
 			<Int sr="arg1" val="0" />
 		</Action>
 		<Action sr="act4" ve="7">

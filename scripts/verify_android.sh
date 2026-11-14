@@ -115,7 +115,9 @@ else
 fi
 
 if [ "$HAVE_ROOT" -eq 1 ]; then
-    if adb_su "grep -q '^allow-external-apps = true' $PROPS_FILE"; then
+    # Double quotes survive the su -c '...' wrapping; single quotes
+    # would collide with it and leave grep reading empty stdin.
+    if adb_su "grep -q \"^allow-external-apps = true\" $PROPS_FILE"; then
         record PASS "allow-external-apps" "set in termux.properties"
     else
         record FAIL "allow-external-apps" \
@@ -166,6 +168,67 @@ if adb_sh "test -f /sdcard/Tasker/projects/MVwifiAuto-Termux.prj.xml"; then
     record PASS "Tasker XML pushed" "/sdcard/Tasker/projects/MVwifiAuto-Termux.prj.xml"
 else
     record WARN "Tasker XML pushed" "not found in /sdcard/Tasker/projects/"
+fi
+
+# --- Persisted-state verification (root only) -----------------------------
+# Tasker merges imports and can silently drop elements — the pushed
+# file matching the repo doesn't prove the live defs do. Check the
+# actual persisted state the same way the Nov-12 investigation did.
+if [ "$HAVE_ROOT" -eq 1 ]; then
+    PERSISTED=$(adb_su "cat /data/data/net.dinglisch.android.taskerm/files/autobackup.xml")
+    REPO_XML="$(dirname "$0")/../android/MVwifiAuto-Termux.prj.xml"
+
+    if [ -z "$PERSISTED" ]; then
+        record WARN "persisted state" "autobackup.xml unreadable"
+    else
+        WANT_GEN=$(grep -o "gen [0-9a-f]*" "$REPO_XML" 2>/dev/null | head -1)
+        if [ -n "$WANT_GEN" ] && echo "$PERSISTED" | grep -q "$WANT_GEN"; then
+            record PASS "persisted gen" "$WANT_GEN matches repo XML"
+        else
+            record FAIL "persisted gen" \
+                "repo gen '${WANT_GEN:-unknown}' not in persisted state — stale or merged import"
+        fi
+
+        # grep -o|wc -l counts elements; grep -c counts lines and
+        # undercounts since Tasker packs several elements per line.
+        SE_COUNT=$(echo "$PERSISTED" | grep -o "<se>false</se>" | wc -l)
+        if [ "$SE_COUNT" -gt 0 ]; then
+            record PASS "continue-on-error" "$SE_COUNT <se>false</se> elements persisted"
+        else
+            record FAIL "continue-on-error" \
+                "no <se>false</se> in persisted state — serialization dropped on import"
+        fi
+
+        for task in MVW_PortalOnConnect MVW_HistoryWatchdog MVW_NudgeWifi; do
+            if echo "$PERSISTED" | grep -q "$task"; then
+                record PASS "task $task" "present in persisted state"
+            else
+                record FAIL "task $task" "missing from persisted state"
+            fi
+        done
+        if echo "$PERSISTED" | grep -q "MVW_ConnectAndRun"; then
+            record WARN "orphan task" \
+                "old MVW_ConnectAndRun still present — delete it in Tasker"
+        fi
+    fi
+
+    if adb_su "pidof com.termux" | grep -q "[0-9]"; then
+        record PASS "Termux alive" "process running"
+    else
+        record WARN "Termux alive" \
+            "no com.termux process — self-heal should resurrect on next run"
+    fi
+
+    for logpair in "history:/sdcard/Tasker/mvwifi_history.log" \
+                   "nudge:/sdcard/mvwifi_nudge.log"; do
+        name="${logpair%%:*}"; path="${logpair#*:}"
+        AGE=$(adb_su "echo \$(( \$(date +%s) - \$(stat -c %Y $path 2>/dev/null || echo 0) ))")
+        if [ -n "$AGE" ] && [ "$AGE" -lt 3600 ]; then
+            record PASS "$name log fresh" "${AGE}s old"
+        else
+            record WARN "$name log fresh" "${AGE:-unknown}s old (>1h stale)"
+        fi
+    done
 fi
 
 fi

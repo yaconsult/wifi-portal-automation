@@ -1376,16 +1376,25 @@ def build_watchdog_project() -> TaskerProject:
     MVwifiAuto-Termux project being deleted from Tasker during
     unrelated project work — after which *nothing* writes history
     markers, so the breakage is invisible. This project exists
-    separately so it survives that deletion: every 6h it stats the
-    history log's mtime and posts a Notify if nothing has written
-    for >24h (long enough to tolerate the phone being off
-    overnight).  It also stats the termux-side nudge log — Tasker
-    markers keep the history fresh even when a dead Termux runs
-    nothing, so both ages are checked; which side went silent is
-    recorded as a ``watchdog | stale`` line in the history log.
+    separately so it survives that deletion: hourly, it stats the
+    history and nudge logs and posts a Notify when:
+
+    - ``termux-silent`` — Tasker markers fresh (<1h) but the
+      termux-side nudge log stale (>1h): the 15-min nudge makes an
+      hour unambiguous, catching a dead Termux in ~1–2h instead of
+      the old >24h threshold that missed the Nov-12 20h outage;
+    - ``tasker-silent`` — Tasker markers quiet >24h: project deleted
+      or phone off (24h tolerates overnight shutdowns);
+    - ``no_root-streak`` — ≥3 ``no_root`` results in the last 20
+      nudge-log lines: root broken while both logs stay fresh.
+
+    Findings are appended to a *separate*
+    ``/sdcard/Tasker/mvwifi_watchdog.log`` — writing them to the
+    history log would refresh the very mtime under observation and
+    misdiagnose a dead Tasker as a dead Termux on the next check.
 
     Task: ``MVW_HistoryWatchdog`` (id=200)
-    Profile: ``MVW History Watchdog`` (id=20) — Time every 6h
+    Profile: ``MVW History Watchdog`` (id=20) — Time hourly
     """
     task = TaskerTask(
         id=200,
@@ -1395,41 +1404,54 @@ def build_watchdog_project() -> TaskerProject:
                 run_shell(
                     "H=/sdcard/Tasker/mvwifi_history.log; "
                     "N=/sdcard/mvwifi_nudge.log; "
-                    "HAGE=$(( $(date +%s) - $(stat -c %Y $H "
+                    "W=/sdcard/Tasker/mvwifi_watchdog.log; "
+                    "NOW=$(date +%s); "
+                    "HAGE=$(( NOW - $(stat -c %Y $H "
                     "2>/dev/null || echo 0) )); "
-                    "NAGE=$(( $(date +%s) - $(stat -c %Y $N "
+                    "NAGE=$(( NOW - $(stat -c %Y $N "
                     "2>/dev/null || echo 0) )); "
                     "DETAIL=; "
-                    "if [ $HAGE -gt 86400 ]; then DETAIL=tasker; fi; "
-                    "if [ $NAGE -gt 86400 ]; then "
-                    "DETAIL=\"$DETAIL termux\"; fi; "
+                    # Tasker fresh but termux-side quiet >1h = dead
+                    # Termux (the 15-min nudge makes >1h unambiguous).
+                    "if [ $HAGE -lt 3600 ] && [ $NAGE -gt 3600 ]; "
+                    "then DETAIL=termux-silent; fi; "
+                    # Both sides quiet >24h = project/Tasker gone or
+                    # phone off (24h tolerates overnight shutdowns).
+                    "if [ $HAGE -gt 86400 ]; "
+                    "then DETAIL=\"$DETAIL tasker-silent\"; fi; "
+                    # Root broken (OTA/Magisk) shows as a no_root
+                    # streak while both logs stay fresh.
+                    "if [ $(tail -20 $N 2>/dev/null | grep -c no_root) "
+                    "-ge 3 ]; then DETAIL=\"$DETAIL no_root-streak\"; "
+                    "fi; "
                     "if [ -n \"$DETAIL\" ]; then "
-                    "echo \"$(date +%s) | watchdog | stale:$DETAIL\" >> $H; "
+                    "echo \"$NOW | watchdog | stale:$DETAIL\" >> $W; "
                     "echo STALE; fi",
                     output_var="%output",
                 ),
-                "Log age check — echoes STALE if Tasker markers or "
-                "Termux nudges go quiet for >24h",
+                "Staleness check — Tasker-fresh/Termux-stale >1h, both "
+                ">24h, or a no_root streak echoes STALE",
             ),
             _lbl(
                 if_condition("%output", "STALE"),
-                "Alert only when the log has gone quiet",
+                "Alert only when something has gone quiet",
             ),
             notify(
                 "MVwifiAuto silent",
-                "No Tasker/Termux activity in >24h — check "
-                "MVwifiAuto-Termux is still imported; if only Termux "
-                "markers are stale, Termux itself may be dead (see "
-                "'watchdog | stale' lines in mvwifi_history.log)",
+                "Stale activity detected — details in "
+                "'watchdog | stale' lines of "
+                "/sdcard/Tasker/mvwifi_watchdog.log (termux-silent = "
+                "dead Termux; tasker-silent = project gone; "
+                "no_root-streak = root broken)",
             ),
-            flash("MVwifiAuto watchdog: history log stale >24h"),
+            flash("MVwifiAuto watchdog: stale activity detected"),
             end_if(),
         ],
     )
     profile = TaskerProfile(
         id=20,
         name="MVW History Watchdog",
-        state=TaskerTime(repeat_unit=1, repeat_value=6),
+        state=TaskerTime(repeat_unit=1, repeat_value=1),
         task_id=200,
     )
     return TaskerProject(
