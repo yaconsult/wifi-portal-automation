@@ -12,8 +12,8 @@ three layers:
 
 **Layer 1 — Tasker (detection & connection)**
 - WiFi Connected profile fires the moment the phone associates to cmvwifi
-- `MVW_ConnectAndRun` task connects to cmvwifi via Tasker Settings, waits
-  5 seconds for DHCP
+- `MVW_PortalOnConnect` task self-heals Termux (the association is
+  already established — no connect step needed)
 - Then triggers `MVW_RunPortalScript` via the Termux:Tasker plugin
 
 **Layer 2 — Termux:Tasker (bridge)**
@@ -365,7 +365,7 @@ The repo includes a pre-built Tasker XML for the Termux approach:
 android/MVwifiAuto-Termux.prj.xml
 ```
 
-This contains the `MVW_ConnectAndRun`, `MVW_RunPortalScript`,
+This contains the `MVW_PortalOnConnect`, `MVW_RunPortalScript`,
 `MVW_CostcoConnect`, `MVW_NudgeWifi`, `MVW_NudgeXfinity`, `MVW_ShowVersion`,
 `MVW_SHGuestCapture`, and `MVW_UnlockNudge` tasks, plus the `MVW cmvwifi
 Auto Connect`, `MVwifi
@@ -432,8 +432,8 @@ project, it survives that deletion. Regenerate with
 >    `MVW_NudgeWifi` still invoked the renamed `cmvwifi_nudge` wrapper).
 > 2. **Delete leftover tasks and profiles too.** Deleting the tab
 >    leaves the tasks in Tasker's global list — a re-import then
->    *fails* with "the name MVW_ConnectAndRun already exists". In the
->    TASKS and PROFILES tabs, delete: `MVW_ConnectAndRun`,
+>    *fails* with "the name MVW_PortalOnConnect already exists". In the
+>    TASKS and PROFILES tabs, delete: `MVW_PortalOnConnect`,
 >    `MVW_RunPortalScript`, `MVW_CostcoConnect`, `MVW_NudgeWifi`,
 >    `MVW_NudgeXfinity`, `MVW_ShowVersion`, `MVW_SHGuestCapture`,
 >    `MVW_UnlockNudge` and any leftover `*wifi*`/
@@ -616,40 +616,36 @@ Termux:Tasker plugin:
 |---|--------|--------|
 | 1 | Plugin → Termux:Task | Executable `mvwifi_portal`; Arguments blank; Background ✓; **Timeout 60s** |
 
-**Task: `MVW_ConnectAndRun`** — connects to cmvwifi (unless already on
-it), self-heals Termux protections, runs the portal script:
+**Task: `MVW_PortalOnConnect`** — fired when the phone associates to
+a municipal SSID: self-heals Termux, runs the portal script. There
+is deliberately **no Connect to WiFi action** — the WiFi Connected
+profile guarantees association by the time the task runs, and a
+hardcoded connect could pull the phone off the sibling SSID.
 
 | # | Action | Fields |
 |---|--------|--------|
-| 1 | File → Write File | File `Tasker/mvwifi_history.log`, Text `MVW_ConnectAndRun fired %TIMES`, Append ✓, Add Newline ✓ — marker proving Tasker fired |
-| 2 | Variables → Variable Set | `%CurrentSSID` = `%WIFII` |
-| 3 | Task → If | `%CurrentSSID` `~` `cmvwifi` |
-| 4 | Task → Goto | Type **Action Number**, Number **8** |
-| 5 | Task → End If | |
-| 6 | Net → Connect to WiFi | SSID `cmvwifi` |
-| 7 | Task → Wait | 5 seconds — DHCP needs a moment to assign an IP before the script binds to wlan0; raise to 10 if you see binding errors |
-| 8 | Code → Run Shell | self-heal command below; Use Root ✓; Timeout 15s; **Continue Task After Error** ✓ (unrooted phones skip it) |
-| 9 | Task → Perform Task | Name `MVW_RunPortalScript` |
-| 10 | Alert → Flash | `Portal handling complete` |
+| 1 | File → Write File | File `Tasker/mvwifi_history.log`, Text `MVW_PortalOnConnect fired %TIMES`, Append ✓, Add Newline ✓ — marker proving Tasker fired |
+| 2 | Code → Run Shell | self-heal command below; Use Root ✓; Timeout 15s; **Continue Task After Error** ✓ (unrooted phones skip it) |
+| 3 | Task → Perform Task | Name `MVW_RunPortalScript` |
+| 4 | Alert → Flash | `Portal handling complete` |
 
-A8 self-heal command:
+A2 self-heal command:
 
 ```sh
-dumpsys deviceidle whitelist +com.termux; settings put global settings_enable_monitor_phantom_procs false; pm grant com.termux android.permission.WRITE_SECURE_SETTINGS
+dumpsys deviceidle whitelist +com.termux; settings put global settings_enable_monitor_phantom_procs false; pm grant com.termux android.permission.WRITE_SECURE_SETTINGS; pidof com.termux >/dev/null 2>&1 || { am startservice -n com.termux/.app.TermuxService >/dev/null 2>&1 || am start -n com.termux/.app.TermuxActivity >/dev/null 2>&1; sleep 3; }
 ```
 
-> The A3–A5 If/Goto skips Connect+Wait when already on cmvwifi
-> (e.g. walking back into range); the self-heal A8 runs either way
-> so protections are re-applied every run. **Adjust the Goto
-> number** if you add or remove actions — it targets the Run Shell
-> step by position.
+> The `pidof` tail resurrects a dead Termux (headless via
+> `am startservice`, falling back to launching the activity) — the
+> plugin reports OK even when Termux never executes anything, so
+> this runs before every plugin call.
 
-**Profile: `MVW cmvwifi Auto Connect`** — triggers `MVW_ConnectAndRun` the
-moment the phone associates to cmvwifi:
+**Profile: `MVW cmvwifi Auto Connect`** — triggers `MVW_PortalOnConnect`
+the moment the phone associates to cmvwifi:
 
 - **PROFILES** → **+** → **State** → **Net** → **WiFi Connected**
 - SSID `cmvwifi`, MAC blank, IP blank, Active: checked
-- Enter task: `MVW_ConnectAndRun`
+- Enter task: `MVW_PortalOnConnect`
 
 > We deliberately use **WiFi Connected**, not WiFi Near: Android
 > auto-joins cmvwifi itself, and WiFi Near depends on WiFi scans
@@ -665,7 +661,7 @@ moment the phone associates to cmvwifi:
 **Manual test (near cmvwifi):**
 
 1. Turn WiFi off and on (to reset state)
-2. In Tasker, tap the **MVW_ConnectAndRun** task to run it manually
+2. In Tasker, tap the **MVW_PortalOnConnect** task to run it manually
 3. Watch for:
    - WiFi connects to cmvwifi
    - 5-second wait
@@ -678,7 +674,7 @@ moment the phone associates to cmvwifi:
 1. Walk away from cmvwifi range, then walk back
 2. Wait a few seconds — the profile fires as soon as the phone
    associates to cmvwifi (no scan delay)
-3. The profile should trigger `MVW_ConnectAndRun` automatically
+3. The profile should trigger `MVW_PortalOnConnect` automatically
 4. Check the Tasker run log (three dots menu → **View Run Log**) to
    confirm it executed
 
@@ -735,7 +731,7 @@ Or transfer either file via Google Drive / `adb pull` for easier reading.
 
 **"Connect to WiFi" returns Error 255:**
 - You're already connected to cmvwifi — the If/Goto check in
-  `MVW_ConnectAndRun` should handle this, but if it still happens, just
+  `MVW_PortalOnConnect` should handle this, but if it still happens, just
   run `MVW_RunPortalScript` directly
 
 **It stopped working after working for a while:**
@@ -826,7 +822,7 @@ wpa-android --once --max-attempts 5
 
 ### Automatic (via Tasker)
 
-Once the WiFi Connected profile is linked to `MVW_ConnectAndRun` (see the
+Once the WiFi Connected profile is linked to `MVW_PortalOnConnect` (see the
 Tasker Integration section above), it will trigger automatically the
 moment the phone associates to cmvwifi.
 
@@ -847,10 +843,10 @@ have PATH issues. The Termux:Tasker plugin is recommended.
 
 ## How It Works
 
-1. **Tasker** detects the cmvwifi association via WiFi Connected and triggers `MVW_ConnectAndRun`
-2. **MVW_ConnectAndRun** checks if already connected; if not, connects to
-   cmvwifi via Tasker Settings, then waits 5 seconds for DHCP
-3. **MVW_ConnectAndRun** calls `MVW_RunPortalScript` via the Termux:Tasker plugin
+1. **Tasker** detects the cmvwifi association via WiFi Connected and triggers `MVW_PortalOnConnect`
+2. **MVW_PortalOnConnect** self-heals Termux (re-applies protections,
+   resurrects a dead process), then calls `MVW_RunPortalScript` via
+   the Termux:Tasker plugin
 4. **Python** creates a `requests.Session` bound to wlan0:
    - `InterfaceBoundAdapter` sets `source_address` to wlan0's local IP
    - `SO_BINDTODEVICE` (socket option 25) forces the kernel to route

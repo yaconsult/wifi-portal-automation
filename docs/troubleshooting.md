@@ -413,7 +413,7 @@ adb push android/MVwifiAuto-Termux.prj.xml /sdcard/Tasker/projects/
 
 **Verify**: Toggle WiFi off/on while connected via adb, or check
 `~/storage/shared/Tasker/mvwifi_history.log` — every trigger appends
-a `tasker | MVW_ConnectAndRun fired` marker.
+a `tasker | MVW_PortalOnConnect fired` marker.
 
 ### Profiles enabled but never fire (after re-import)
 
@@ -482,29 +482,36 @@ WiFi icon — apps keep using cellular. `dumpsys connectivity` shows
 `CAPTIVE_PORTAL` on the WiFi network and `Active default network` is
 the mobile interface.
 
-**Cause**: `MVW_ConnectAndRun` aborted before the portal handler. The
+**Cause**: the captive portal was never (re-)accepted. On older
+builds, `MVW_ConnectAndRun` aborted before the portal handler: the
 periodic nudge can associate first; by the time the delayed
-WiFi-Connected event task runs, `%WIFII` may read `>>> SCAN <<<` so
-the already-connected skip-guards miss, the redundant "Connect To
-WiFi" action errors, and the task exits before running the portal
-script. Runlog shows `A Err ID80.9 Connect To WiFi` + `ExitErr`.
+WiFi-Connected event task ran, `%WIFII` read `>>> SCAN <<<` so the
+already-connected skip-guards missed (they could never match — the
+`~` op needs a whole-string match on a multi-line `%WIFII`), the
+redundant "Connect To WiFi" action errored, and the task exited
+before the portal script. Runlog showed `A Err … Connect To WiFi` +
+`ExitErr`.
 
 **Diagnose**:
 ```bash
 adb shell 'su -c "dumpsys connectivity"' | grep -A2 "ni{WIFI"   # CAPTIVE_PORTAL?
-grep "ConnectAndRun" /sdcard/Tasker/log/runlog.txt | tail       # ExitErr at act8/9?
+grep "PortalOnConnect\|ConnectAndRun" /sdcard/Tasker/log/runlog.txt | tail
+tail /sdcard/mvwifi_nudge.log                                    # portal_rehandled?
 ```
 
 **Immediate fix**: run the portal handler manually —
 `adb shell 'su -c "/data/data/com.termux/files/home/.termux/tasker/mvwifi_portal"'`
 — then Android re-validates and promotes WiFi within seconds.
 
-**Permanent fix**: `MVwifiAuto-Termux.prj.xml` gen `0e0b7f`+ marks
-the Connect action continue-on-error **via `<se>false</se>`** —
-Tasker's real serialization. (Earlier XML emitted `<con>true</con>`,
-which Tasker silently drops on import — the flag looked right in the
-file but did nothing; verify the fix landed by grepping Tasker's
-persisted `autobackup.xml` for `<se>false</se>`, not the pushed file.)
+**Permanent fix** (gen `434d1e`+): two layers. The event task is now
+`MVW_PortalOnConnect` — no connect step at all (association is
+guaranteed by the WiFi Connected profile), so nothing can abort
+before the portal handler. And every preferred-nudge tick passes
+`--recheck-portal`: when connected to a `portal_ssids` network the
+nudge parses the WiFi agent's `VALIDATED`/`CAPTIVE_PORTAL`
+capabilities and re-runs the handler itself — a stuck captive state
+self-repairs within ~15 min. `portal_ssids` is set in
+`networks.toml` (default: the municipal pair).
 Reimport the project (full cycle in `docs/android-termux-setup.md`).
 
 ### Scheduled tasks run old behavior after re-import
@@ -557,9 +564,11 @@ strays; manual `adb push` should use the same path.
    showed the old version again.
 
 **Fix**: Delete the project tab *and* its leftover tasks/profiles
-(TASKS/PROFILES tabs: `MVW_ConnectAndRun`, `MVW_RunPortalScript`,
-`MVW_CostcoConnect`, `MVW_NudgeWifi`, `MVW_NudgeXfinity`, `MVW_ShowVersion`, and the
-wifi/nudge profiles), then Import Project, then **exit Tasker
+(TASKS/PROFILES tabs: `MVW_PortalOnConnect`, `MVW_RunPortalScript`,
+`MVW_CostcoConnect`, `MVW_NudgeWifi`, `MVW_NudgeXfinity`,
+`MVW_ShowVersion`, any wifi/nudge profiles — **plus the old
+`MVW_ConnectAndRun`**, which was renamed and would otherwise linger
+as an orphan), then Import Project, then **exit Tasker
 gracefully** (Back or its Exit menu — this is what persists the
 import), then relaunch Tasker so contexts register against the new
 definitions. Verify the marker gen ids match the XML on the next
@@ -576,7 +585,7 @@ can delay Tasker ~30 min after the actual association. With WiFi
 Connected this can't happen; it fires at association.
 
 **Diagnose**: Check `~/storage/shared/Tasker/mvwifi_history.log`
-and compare the `tasker | MVW_ConnectAndRun fired` timestamp with when
+and compare the `tasker | MVW_PortalOnConnect fired` timestamp with when
 the phone actually connected (Settings → WiFi, or logcat). A large
 gap means a stale WiFi Near import.
 
@@ -692,7 +701,7 @@ killer itself on every run (self-heal after OS updates). The
 wrapper also holds `termux-wake-lock` during the run.
 
 On rooted phones, a root shell self-heal action runs before every
-Termux plugin call (all nudge tasks, `MVW_ConnectAndRun`, and the
+Termux plugin call (all nudge tasks, `MVW_PortalOnConnect`, and the
 per-network portal tasks) that re-applies all three protections on
 every trigger — so a regressed setting is repaired before it can
 cause a failure — and resurrects Termux itself if its process is
