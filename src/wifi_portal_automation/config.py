@@ -21,6 +21,12 @@ Schema (see ``networks.example.toml`` for a commented copy)::
 
     # The open fallback joined only when nothing preferred is visible.
     fallback = "xfinitywifi"
+
+    # SSIDs with a captive portal the nudge can re-handle.  When
+    # `wpa-nudge --recheck-portal` finds the phone connected to one
+    # of these but the network unvalidated (CAPTIVE_PORTAL), it
+    # re-runs the portal handler instead of exiting already_connected.
+    portal_ssids = ["cmvwifi", "MVwifi"]
 """
 
 from __future__ import annotations
@@ -43,6 +49,7 @@ class NetworkConfig:
     preferred: tuple[str, ...]
     preferred_open: tuple[str, ...]
     fallback: str
+    portal_ssids: tuple[str, ...] = ()
 
 
 # Built-in example list — the public WiFi deployment used throughout
@@ -63,6 +70,7 @@ DEFAULT_CONFIG = NetworkConfig(
         "SHGuestNet",
     ),
     fallback="xfinitywifi",
+    portal_ssids=("cmvwifi", "MVwifi"),
 )
 
 
@@ -107,6 +115,7 @@ def load_config(path: Path) -> NetworkConfig:
         preferred=_list("preferred", preferred_default),
         preferred_open=preferred_open,
         fallback=fallback,
+        portal_ssids=_list("portal_ssids", DEFAULT_CONFIG.portal_ssids),
     )
     missing = set(cfg.preferred_open) - set(cfg.preferred)
     if missing:

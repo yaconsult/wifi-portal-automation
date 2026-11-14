@@ -58,6 +58,7 @@ import re
 import shlex
 import sys
 import time
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
@@ -126,7 +127,8 @@ class NudgeReport:
     """Terminal state: already_connected, connected_elsewhere,
     fallback_stay, wifi_disabled, target_absent, deferred,
     connect_requested, promoted, dry_run, no_root, status_failed,
-    scan_failed, connect_failed, or throttled."""
+    scan_failed, connect_failed, throttled, portal_rehandled, or
+    portal_recheck_failed."""
 
     ok: bool
     wifi_enabled: bool = False
@@ -234,6 +236,27 @@ def _scan(su: str, settle: float) -> tuple[int, str]:
     return run_root(su, "cmd wifi list-scan-results")
 
 
+def wifi_validated(su: str) -> bool | None:
+    """Whether Android considers the WiFi network validated.
+
+    Parses ``dumpsys connectivity``: the WIFI ``NetworkAgentInfo``
+    block carries ``VALIDATED`` in its ``nc{... Capabilities:}`` when
+    Android has confirmed internet access, and ``CAPTIVE_PORTAL``
+    instead when it has not.  Returns ``True``/``False``, or ``None``
+    when the dump fails or no WiFi agent is present (callers should
+    treat ``None`` as "don't recheck", not "captive").
+    """
+    rc, out = run_root(su, "dumpsys connectivity")
+    if rc != 0:
+        logger.warning("dumpsys connectivity failed (rc=%s)", rc)
+        return None
+    for line in out.splitlines():
+        if "ni{WIFI " in line:
+            caps = line.partition("Capabilities:")[2]
+            return "VALIDATED" in caps and "CAPTIVE_PORTAL" not in caps
+    return None
+
+
 def _connect(su: str, ssid: str, autojoin_disabled: bool) -> int:
     """Issue ``cmd wifi connect-network`` for *ssid*; returns the rc.
 
@@ -259,6 +282,8 @@ def run_nudge(
     autojoin_disabled: bool = False,
     min_interval: float = 0.0,
     state_file: Path | None = None,
+    portal_ssids: tuple[str, ...] = (),
+    on_unvalidated: Callable[[], bool] | None = None,
 ) -> NudgeReport:
     """Check WiFi state and request a join if a target SSID is visible.
 
@@ -290,6 +315,13 @@ def run_nudge(
             that pass *min_interval*, so throttled callers share a
             window with each other while unthrottled callers (the
             periodic nudges) always scan.
+        portal_ssids: Target SSIDs with a captive portal.  When
+            connected to one, validation is checked before reporting
+            ``already_connected``.
+        on_unvalidated: Callable invoked when connected to a
+            *portal_ssids* entry whose network is not validated —
+            should run the portal handler and return its success.
+            ``None`` disables the recheck entirely (no dumpsys call).
 
     Returns:
         A :class:`NudgeReport` describing what was decided and done.
@@ -308,6 +340,24 @@ def run_nudge(
     if not status.enabled:
         return _report("wifi_disabled", True, status, targets)
     if status.connected_ssid in targets:
+        # Edge-triggered portal handling means a missed/failed run
+        # leaves the phone associated but captive forever — recheck
+        # validation for portal SSIDs and re-handle when needed.
+        if on_unvalidated is not None and status.connected_ssid in portal_ssids:
+            validated = wifi_validated(su)
+            if validated is False:
+                logger.info(
+                    "connected to %s but network is not validated — "
+                    "re-running portal handler",
+                    status.connected_ssid,
+                )
+                ok = on_unvalidated()
+                return _report(
+                    "portal_rehandled" if ok else "portal_recheck_failed",
+                    ok,
+                    status,
+                    targets,
+                )
         return _report("already_connected", True, status, targets)
     on_fallback = status.connected_ssid in fallbacks
     if status.connected_ssid is not None and not on_fallback:
@@ -467,6 +517,13 @@ def main(argv: list[str] | None = None) -> int:
         "~/.cache/wifi_portal_automation/last_scan)",
     )
     parser.add_argument(
+        "--recheck-portal",
+        action="store_true",
+        help="When already connected to a portal_ssids network, verify "
+        "Android validation and re-run the portal handler if captive — "
+        "covers missed/failed edge-triggered portal runs",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Report the decision without issuing connect-network",
@@ -502,6 +559,14 @@ def main(argv: list[str] | None = None) -> int:
     defer_to = list(args.defer_to or [])
     if args.defer_to_preferred:
         defer_to += [s for s in config.preferred if s not in defer_to]
+    on_unvalidated = None
+    if args.recheck_portal:
+        from wifi_portal_automation.android import run_once
+
+        def on_unvalidated() -> bool:  # noqa: F811
+            logger.info("running portal handler for captive network")
+            return run_once(verbose=args.verbose)
+
     su = find_su()
     if su is None:
         report = _report("no_root", False, None, targets)
@@ -520,6 +585,8 @@ def main(argv: list[str] | None = None) -> int:
                 args.state_file
                 or Path.home() / ".cache" / "wifi_portal_automation" / "last_scan"
             ),
+            portal_ssids=config.portal_ssids,
+            on_unvalidated=on_unvalidated,
         )
 
     # The resolved action lands in the log file too — promoted /

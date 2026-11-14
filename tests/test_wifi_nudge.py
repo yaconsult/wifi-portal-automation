@@ -15,6 +15,7 @@ from wifi_portal_automation.wifi_nudge import (
     parse_scan_results,
     parse_wifi_status,
     run_nudge,
+    wifi_validated,
 )
 
 # `cmd wifi status` while associated with cmvwifi (truncated tail).
@@ -70,6 +71,26 @@ def _fake_run_root(responses: dict[str, tuple[int, str]]):
     return fake
 
 
+# `dumpsys connectivity` — the WIFI NetworkAgentInfo block (truncated;
+# the real block is one long line).  Validated WiFi carries VALIDATED
+# in nc{...Capabilities:}; a captive network shows CAPTIVE_PORTAL
+# instead.  Modeled on a Pixel 6a capture.
+DC_WIFI_VALIDATED = (
+    'NetworkAgentInfo{network{153} ni{WIFI CONNECTED extra: } '
+    'Score(Policies : IS_VALIDATED) lp{{InterfaceName: wlan1}} '
+    'nc{[ Transports: WIFI Capabilities: INTERNET&TRUSTED&NOT_VPN&'
+    'VALIDATED&NOT_SUSPENDED LinkUpBandwidth>=19183Kbps '
+    'Specifier: <WifiNetworkAgentSpecifier [SSID="cmvwifi"]>]}}'
+)
+DC_WIFI_CAPTIVE = DC_WIFI_VALIDATED.replace(
+    "VALIDATED&NOT_SUSPENDED", "CAPTIVE_PORTAL&NOT_SUSPENDED"
+)
+DC_NO_WIFI_AGENT = (
+    'NetworkAgentInfo{network{143} ni{MOBILE[LTE] CONNECTED} '
+    'nc{[ Transports: CELLULAR Capabilities: VALIDATED ]}}'
+)
+
+
 class TestParseWifiStatus:
     """Test `cmd wifi status` parsing."""
 
@@ -123,6 +144,29 @@ class TestParseScanResults:
         assert parse_scan_results("") == []
 
 
+class TestWifiValidated:
+    """Test `dumpsys connectivity` validation parsing."""
+
+    def _run(self, output: str, rc: int = 0) -> bool | None:
+        with patch(
+            "wifi_portal_automation.wifi_nudge.run_root",
+            return_value=(rc, output),
+        ):
+            return wifi_validated("su")
+
+    def test_validated(self):
+        assert self._run(DC_WIFI_VALIDATED) is True
+
+    def test_captive(self):
+        assert self._run(DC_WIFI_CAPTIVE) is False
+
+    def test_no_wifi_agent(self):
+        assert self._run(DC_NO_WIFI_AGENT) is None
+
+    def test_rc_failure(self):
+        assert self._run("", rc=1) is None
+
+
 class TestRunNudge:
     """Test the nudge decision flow (run_root mocked)."""
 
@@ -132,6 +176,93 @@ class TestRunNudge:
             side_effect=_fake_run_root({"status": (0, STATUS_CONNECTED)}),
         ):
             report = run_nudge("su", ["cmvwifi"], settle=0)
+        assert report.action == "already_connected"
+
+    def test_portal_recheck_runs_handler_when_captive(self):
+        """Connected to a portal SSID + CAPTIVE_PORTAL -> re-handle."""
+        calls = []
+        with patch(
+            "wifi_portal_automation.wifi_nudge.run_root",
+            side_effect=_fake_run_root({
+                "status": (0, STATUS_CONNECTED),
+                "dumpsys": (0, DC_WIFI_CAPTIVE),
+            }),
+        ):
+            report = run_nudge(
+                "su", ["cmvwifi"], settle=0,
+                portal_ssids=("cmvwifi",),
+                on_unvalidated=lambda: calls.append(1) or True,
+            )
+        assert calls == [1]
+        assert report.action == "portal_rehandled"
+        assert report.ok is True
+
+    def test_portal_recheck_failure_reported(self):
+        """A failed re-handle is a distinct, non-ok action."""
+        with patch(
+            "wifi_portal_automation.wifi_nudge.run_root",
+            side_effect=_fake_run_root({
+                "status": (0, STATUS_CONNECTED),
+                "dumpsys": (0, DC_WIFI_CAPTIVE),
+            }),
+        ):
+            report = run_nudge(
+                "su", ["cmvwifi"], settle=0,
+                portal_ssids=("cmvwifi",),
+                on_unvalidated=lambda: False,
+            )
+        assert report.action == "portal_recheck_failed"
+        assert report.ok is False
+
+    def test_portal_recheck_skipped_when_validated(self):
+        """Validated portal SSID -> already_connected, no handler call."""
+        calls = []
+        with patch(
+            "wifi_portal_automation.wifi_nudge.run_root",
+            side_effect=_fake_run_root({
+                "status": (0, STATUS_CONNECTED),
+                "dumpsys": (0, DC_WIFI_VALIDATED),
+            }),
+        ):
+            report = run_nudge(
+                "su", ["cmvwifi"], settle=0,
+                portal_ssids=("cmvwifi",),
+                on_unvalidated=lambda: calls.append(1) or True,
+            )
+        assert calls == []
+        assert report.action == "already_connected"
+
+    def test_portal_recheck_skipped_for_non_portal_ssid(self):
+        """Connected to a non-portal target -> no dumpsys, no handler."""
+        calls = []
+        with patch(
+            "wifi_portal_automation.wifi_nudge.run_root",
+            side_effect=_fake_run_root({"status": (0, STATUS_CONNECTED)}),
+        ):
+            report = run_nudge(
+                "su", ["cmvwifi"], settle=0,
+                portal_ssids=("MVwifi",),  # connected SSID not in list
+                on_unvalidated=lambda: calls.append(1) or True,
+            )
+        assert calls == []
+        assert report.action == "already_connected"
+
+    def test_portal_recheck_skipped_on_parse_failure(self):
+        """dumpsys failure -> None -> treat as 'don't recheck'."""
+        calls = []
+        with patch(
+            "wifi_portal_automation.wifi_nudge.run_root",
+            side_effect=_fake_run_root({
+                "status": (0, STATUS_CONNECTED),
+                "dumpsys": (1, ""),
+            }),
+        ):
+            report = run_nudge(
+                "su", ["cmvwifi"], settle=0,
+                portal_ssids=("cmvwifi",),
+                on_unvalidated=lambda: calls.append(1) or True,
+            )
+        assert calls == []
         assert report.action == "already_connected"
         assert report.ok is True
 

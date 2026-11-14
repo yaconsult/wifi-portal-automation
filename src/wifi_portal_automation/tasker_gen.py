@@ -638,7 +638,10 @@ def termux_self_heal() -> TaskerAction:
     mvwifi_portal wrapper self-heal that setting on every run), and
     resurrects Termux when its process is dead — a dead Termux can
     never run a wrapper to self-heal, so this root shell (which needs
-    no Termux) is the only path back.  Idempotent and safe to run on
+    no Termux) is the only path back.  Resurrection prefers
+    ``am startservice`` (headless — verified on-device to leave no
+    resumed activity) and falls back to launching TermuxActivity.
+    Idempotent and safe to run on
     every trigger.  continue_on_error keeps the task working on
     unrooted phones — the protections simply can't be re-applied
     without root.
@@ -648,7 +651,10 @@ def termux_self_heal() -> TaskerAction:
         "settings put global settings_enable_monitor_phantom_procs false; "
         "pm grant com.termux android.permission.WRITE_SECURE_SETTINGS; "
         "pidof com.termux >/dev/null 2>&1 || "
-        "{ am start -n com.termux/.app.TermuxActivity >/dev/null 2>&1; sleep 3; }",
+        "{ am startservice -n com.termux/.app.TermuxService "
+        ">/dev/null 2>&1 || "
+        "am start -n com.termux/.app.TermuxActivity >/dev/null 2>&1; "
+        "sleep 3; }",
         timeout=15,
         use_root=True,
         continue_on_error=True,
@@ -927,14 +933,20 @@ def _build_run_portal_script_task_termux() -> TaskerTask:
 
 
 def _build_connect_and_run_task_termux() -> TaskerTask:
-    """Build the MVW_ConnectAndRun task (id=80) — Termux approach.
+    """Build the MVW_PortalOnConnect task (id=81) — Termux approach.
 
-    Connects to cmvwifi (if not already connected), waits for DHCP,
-    then calls MVW_RunPortalScript to handle the captive portal.
+    Fires on the WiFi Connected profiles for the municipal SSIDs —
+    by the time this runs the phone is already associated, so there
+    is deliberately no Connect action (a hardcoded connect could
+    pull the phone off the sibling SSID, and its already-connected
+    If-guards never matched anyway: Tasker's ~ requires a
+    whole-string match while %WIFII is multi-line).  Renamed from
+    MVW_ConnectAndRun and given a fresh task id so a stale id-80
+    orphan can't shadow it on import.
     """
     return TaskerTask(
-        id=80,
-        name="MVW_ConnectAndRun",
+        id=81,
+        name="MVW_PortalOnConnect",
         actions=[
             # A1: History marker — records that Tasker fired, even if
             # the plugin call later fails or Termux never runs.
@@ -942,48 +954,22 @@ def _build_connect_and_run_task_termux() -> TaskerTask:
             _lbl(
                 write_file(
                     "Tasker/mvwifi_history.log",
-                    "%TIMES | tasker | MVW_ConnectAndRun fired [gen @MWGEN@]",
+                    "%TIMES | tasker | MVW_PortalOnConnect fired [gen @MWGEN@]",
                 ),
                 "History marker — proves Tasker fired even if Termux fails",
             ),
-            # A2: Store current SSID
-            variable_set("%CurrentSSID", "%WIFII"),
-            # A3: If already on cmvwifi, skip connection
-            if_condition("%CurrentSSID", "cmvwifi"),
-            # A4: Goto A11 (self-heal) — skip connect and wait
-            goto_action(11),
-            # A5: End If
-            end_if(),
-            # A6: If already on MVwifi — same municipal network under
-            # its alternate SSID — skip connection too
-            _lbl(
-                if_condition("%CurrentSSID", "MVwifi"),
-                "MVwifi = same municipal network, alternate SSID",
-            ),
-            # A7: Goto A11 (self-heal)
-            goto_action(11),
-            # A8: End If
-            end_if(),
-            # A9: Connect to cmvwifi.  continue_on_error is REQUIRED:
-            # the nudge can associate before this delayed event task
-            # runs, and %WIFII can be ">>> SCAN <<<" (failing the A3/A6
-            # skip guards) — a redundant connect then errors and would
-            # otherwise abort the task before the portal handler.
-            connect_wifi("cmvwifi", continue_on_error=True),
-            # A10: Wait 5 seconds for DHCP
-            _lbl(wait(seconds=5), "Let DHCP settle"),
-            # A11: Re-apply Termux protections (root; skipped on
+            # A2: Re-apply Termux protections (root; skipped on
             # unrooted devices via continue_on_error)
             _lbl(
                 termux_self_heal(),
                 "Re-apply Termux protections (root; no-op unrooted)",
             ),
-            # A12: Run the portal script
+            # A3: Run the portal script
             _lbl(
                 perform_task("MVW_RunPortalScript", wait_for_finish=True),
                 "Portal handler via Termux:Tasker",
             ),
-            # A13: Flash completion
+            # A4: Flash completion
             flash("Portal handling complete"),
         ],
     )
@@ -1011,7 +997,7 @@ def _build_cmvwifi_profile_termux() -> TaskerProfile:
                 TaskerArg.int_arg(3, 2),           # Active (2 = connected)
             ],
         ),
-        task_id=80,  # MVW_ConnectAndRun
+        task_id=81,  # MVW_PortalOnConnect
     )
 
 
@@ -1020,9 +1006,9 @@ def _build_mvwifi_profile_termux() -> TaskerProfile:
 
     `MVwifi` is the same municipal network broadcasting under an
     alternate SSID — observed on-device (09:30 association during a
-    field session).  Fires MVW_ConnectAndRun exactly like the cmvwifi
-    profile; the task skips re-connecting when %WIFII already names
-    either SSID, so the portal handler just runs.
+    field session).  Fires MVW_PortalOnConnect exactly like the
+    cmvwifi profile; association is already established when the
+    task runs, so it goes straight to portal handling.
     """
     return TaskerProfile(
         id=6,
@@ -1036,7 +1022,7 @@ def _build_mvwifi_profile_termux() -> TaskerProfile:
                 TaskerArg.int_arg(3, 2),           # Active (2 = connected)
             ],
         ),
-        task_id=80,  # MVW_ConnectAndRun
+        task_id=81,  # MVW_PortalOnConnect
     )
 
 
@@ -1134,7 +1120,10 @@ def _build_cmvwifi_nudge_task() -> TaskerTask:
             _lbl(
                 termux_task(
                     "wifi_nudge",
-                    arguments="--preferred --fallback xfinitywifi",
+                    arguments=(
+                        "--preferred --fallback xfinitywifi "
+                        "--recheck-portal"
+                    ),
                     background=True,
                     timeout=45,
                 ),
@@ -1351,7 +1340,7 @@ def _build_unlock_nudge_task() -> TaskerTask:
                     "wifi_nudge",
                     arguments=(
                         "--preferred --fallback xfinitywifi "
-                        "--min-interval 300"
+                        "--min-interval 300 --recheck-portal"
                     ),
                     background=True,
                     timeout=45,
@@ -1459,8 +1448,9 @@ def build_termux_project() -> TaskerProject:
 
     Tasks:
         - MVW_RunPortalScript: runs wpa-android via Termux:Tasker plugin
-        - MVW_ConnectAndRun: connects to cmvwifi (or skips when already on
-          cmvwifi/MVwifi), waits for DHCP, calls MVW_RunPortalScript
+        - MVW_PortalOnConnect: fired by the municipal WiFi Connected
+          profiles (association guaranteed) — self-heals Termux and
+          calls MVW_RunPortalScript
         - MVW_CostcoConnect: runs the Costco Mist portal handler
         - MVW_NudgeWifi: periodic auto-join nudge for cmvwifi (+ promotes
           off xfinitywifi when cmvwifi is visible)
@@ -1473,9 +1463,9 @@ def build_termux_project() -> TaskerProject:
           --min-interval 300 — fired on Display Unlocked
 
     Profiles:
-        - MVW cmvwifi Auto Connect: WiFi Connected → MVW_ConnectAndRun
+        - MVW cmvwifi Auto Connect: WiFi Connected → MVW_PortalOnConnect
         - MVW MVwifi Auto Connect: WiFi Connected (MVwifi — same
-          municipal network, alternate SSID) → MVW_ConnectAndRun
+          municipal network, alternate SSID) → MVW_PortalOnConnect
         - MVW Costco WiFi Connected: WiFi Connected (Costco Member
           Wifi) → MVW_CostcoConnect
         - MVW cmvwifi Periodic Nudge: Time (every 15 min) →

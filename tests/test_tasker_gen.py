@@ -414,7 +414,7 @@ class TestTermuxProject:
         task_names = {t.find("nme").text for t in tasks}
         assert task_names == {
             "MVW_RunPortalScript",
-            "MVW_ConnectAndRun",
+            "MVW_PortalOnConnect",
             "MVW_CostcoConnect",
             "MVW_NudgeWifi",
             "MVW_NudgeXfinity",
@@ -424,7 +424,7 @@ class TestTermuxProject:
         }
 
     def test_profile_links_to_connect_and_run(self):
-        """Test that the cmvwifi profile links to MVW_ConnectAndRun (id=80)."""
+        """Test that the cmvwifi profile links to MVW_PortalOnConnect (id=81)."""
         project = build_termux_project()
         xml_text = generate_project_xml(project)
         root = fromstring(xml_text)
@@ -432,7 +432,7 @@ class TestTermuxProject:
         profile = next(
             p for p in profiles if p.find("nme").text == "MVW cmvwifi Auto Connect"
         )
-        assert profile.find("mid0").text == "80"
+        assert profile.find("mid0").text == "81"
 
     def test_profile_uses_wifi_connected_state(self):
         """Termux profile triggers on WiFi Connected, not WiFi Near.
@@ -472,83 +472,68 @@ class TestTermuxProject:
         assert "mvwifi_portal" in bundle_xml
         assert "com.termux.tasker.extra.EXECUTABLE" in bundle_xml
 
-    def test_connect_and_run_has_wifi_connect(self):
-        """Test that MVW_ConnectAndRun has a Connect to WiFi action."""
-        project = build_termux_project()
-        xml_text = generate_project_xml(project)
-        root = fromstring(xml_text)
-        tasks = root.findall("Task")
-        connect_task = next(t for t in tasks if t.find("nme").text == "MVW_ConnectAndRun")
-        actions = connect_task.findall("Action")
-        codes = [int(a.find("code").text) for a in actions]
-        assert CODE_CONNECT_WIFI in codes
+    def test_portal_on_connect_has_no_connect_action(self):
+        """MVW_PortalOnConnect must NOT contain a Connect to WiFi action.
 
-    def test_connect_action_continues_after_error(self):
-        """Connect to WiFi must not abort ConnectAndRun before the portal handler.
-
-        Regression: when the nudge associates before this delayed event
-        task runs — or %WIFII reads ">>> SCAN <<<" so the skip-guards miss —
-        the redundant Connect action errors; without continue-on-error the
-        task exits before MVW_RunPortalScript and the portal stays captive.
+        The task only fires on WiFi Connected profiles — association is
+        guaranteed. The old connect step was redundant, and hardcoding
+        cmvwifi could pull the phone off the sibling MVwifi SSID (a
+        ranking violation). Its %WIFII If-guards never matched anyway:
+        Tasker's ~ op requires a whole-string match and %WIFII is
+        multi-line (">>> SCAN <<<" / ">>> CONNECTION <<<").
         """
         project = build_termux_project()
         xml_text = generate_project_xml(project)
         root = fromstring(xml_text)
         tasks = root.findall("Task")
-        connect_task = next(t for t in tasks if t.find("nme").text == "MVW_ConnectAndRun")
-        connect_action = next(
-            a for a in connect_task.findall("Action") if a.find("code").text == str(CODE_CONNECT_WIFI)
-        )
-        se = connect_action.find("se")
-        assert se is not None and se.text == "false"
+        task = next(t for t in tasks if t.find("nme").text == "MVW_PortalOnConnect")
+        codes = [int(a.find("code").text) for a in task.findall("Action")]
+        assert CODE_CONNECT_WIFI not in codes
+        assert CODE_WAIT not in codes
+        # No SSID If-guards either — nothing in this task depends on
+        # which municipal SSID triggered it.
+        assert CODE_IF not in codes
+        assert CODE_GOTO not in codes
 
-    def test_connect_and_run_has_wait(self):
-        """Test that MVW_ConnectAndRun has a Wait action for DHCP."""
+    def test_portal_on_connect_uses_fresh_task_id(self):
+        """MVW_PortalOnConnect gets its own id so a stale id-80
+        MVW_ConnectAndRun orphan can't shadow it on merge-import."""
         project = build_termux_project()
         xml_text = generate_project_xml(project)
         root = fromstring(xml_text)
         tasks = root.findall("Task")
-        connect_task = next(t for t in tasks if t.find("nme").text == "MVW_ConnectAndRun")
-        actions = connect_task.findall("Action")
-        codes = [int(a.find("code").text) for a in actions]
-        assert CODE_WAIT in codes
+        task = next(t for t in tasks if t.find("nme").text == "MVW_PortalOnConnect")
+        assert task.get("sr") is not None
+        assert task.find("id").text == "81"
 
-    def test_connect_and_run_has_perform_task(self):
-        """Test that MVW_ConnectAndRun calls MVW_RunPortalScript via Perform Task."""
+    def test_portal_on_connect_has_perform_task(self):
+        """MVW_PortalOnConnect calls MVW_RunPortalScript via Perform Task."""
         project = build_termux_project()
         xml_text = generate_project_xml(project)
         root = fromstring(xml_text)
         tasks = root.findall("Task")
-        connect_task = next(t for t in tasks if t.find("nme").text == "MVW_ConnectAndRun")
-        actions = connect_task.findall("Action")
-        perform_actions = [a for a in actions if a.find("code").text == str(CODE_PERFORM_TASK)]
+        task = next(t for t in tasks if t.find("nme").text == "MVW_PortalOnConnect")
+        perform_actions = [
+            a
+            for a in task.findall("Action")
+            if a.find("code").text == str(CODE_PERFORM_TASK)
+        ]
         assert len(perform_actions) >= 1
-        # The first arg should be the task name "MVW_RunPortalScript"
         str_args = perform_actions[0].findall("Str")
         assert any(s.text == "MVW_RunPortalScript" for s in str_args)
 
-    def test_connect_and_run_has_if_goto(self):
-        """Test that MVW_ConnectAndRun has If + Goto for already-connected check."""
+    def test_portal_on_connect_has_termux_self_heal(self):
+        """MVW_PortalOnConnect re-applies Termux protections via root shell."""
         project = build_termux_project()
         xml_text = generate_project_xml(project)
         root = fromstring(xml_text)
         tasks = root.findall("Task")
-        connect_task = next(t for t in tasks if t.find("nme").text == "MVW_ConnectAndRun")
-        actions = connect_task.findall("Action")
-        codes = [int(a.find("code").text) for a in actions]
-        assert CODE_IF in codes
-        assert CODE_GOTO in codes
-        assert CODE_END_IF in codes
-
-    def test_connect_and_run_has_termux_self_heal(self):
-        """MVW_ConnectAndRun re-applies Termux protections via root shell."""
-        project = build_termux_project()
-        xml_text = generate_project_xml(project)
-        root = fromstring(xml_text)
-        tasks = root.findall("Task")
-        connect_task = next(t for t in tasks if t.find("nme").text == "MVW_ConnectAndRun")
-        actions = connect_task.findall("Action")
-        shell_actions = [a for a in actions if a.find("code").text == str(CODE_RUN_SHELL)]
+        task = next(t for t in tasks if t.find("nme").text == "MVW_PortalOnConnect")
+        shell_actions = [
+            a
+            for a in task.findall("Action")
+            if a.find("code").text == str(CODE_RUN_SHELL)
+        ]
         assert len(shell_actions) == 1
         shell = shell_actions[0]
         # Must continue on error so unrooted devices keep working
@@ -559,50 +544,24 @@ class TestTermuxProject:
             for s in str_args
         )
 
-    def test_connect_and_run_goto_targets_self_heal(self):
-        """The already-connected Goto must land on the self-heal action,
-        so both connect paths re-apply protections before the plugin."""
+    def test_portal_on_connect_action_order(self):
+        """Marker, then self-heal, then the portal plugin — the self-heal
+        must run before the plugin call that depends on Termux."""
         project = build_termux_project()
         xml_text = generate_project_xml(project)
         root = fromstring(xml_text)
         tasks = root.findall("Task")
-        connect_task = next(t for t in tasks if t.find("nme").text == "MVW_ConnectAndRun")
-        actions = connect_task.findall("Action")
-        # Gotos are A4 (index 3) and A7 (index 6) — after the history
-        # Write File, Variable Set, and each If.  Both must target
-        # A11: the self-heal Run Shell.
-        for idx in (3, 6):
-            goto = actions[idx]
-            assert goto.find("code").text == str(CODE_GOTO)
-            ints = goto.findall("Int")
-            assert ints[0].get("val") == "0"  # type: Action Number
-            assert int(ints[1].get("val")) == 11  # A11: self-heal
-        target_action = actions[10]
-        assert target_action.find("code").text == str(CODE_RUN_SHELL)
-        # And the next action after it must be Perform Task
-        assert actions[11].find("code").text == str(CODE_PERFORM_TASK)
-
-    def test_connect_and_run_skips_connect_on_mvwifi(self):
-        """MVW_ConnectAndRun treats MVwifi (alternate municipal SSID) as
-        already-connected: an If comparing %CurrentSSID to MVwifi."""
-        project = build_termux_project()
-        xml_text = generate_project_xml(project)
-        root = fromstring(xml_text)
-        tasks = root.findall("Task")
-        connect_task = next(t for t in tasks if t.find("nme").text == "MVW_ConnectAndRun")
-        if_actions = [
-            a
-            for a in connect_task.findall("Action")
-            if a.find("code").text == str(CODE_IF)
+        task = next(t for t in tasks if t.find("nme").text == "MVW_PortalOnConnect")
+        codes = [a.find("code").text for a in task.findall("Action")]
+        assert codes == [
+            str(CODE_WRITE_FILE),
+            str(CODE_RUN_SHELL),
+            str(CODE_PERFORM_TASK),
+            str(CODE_FLASH),
         ]
-        compared = {
-            a.find("ConditionList/Condition/rhs").text
-            for a in if_actions
-        }
-        assert compared == {"cmvwifi", "MVwifi"}
 
     def test_mvwifi_profile(self):
-        """MVW MVwifi Auto Connect profile triggers MVW_ConnectAndRun on the
+        """MVW MVwifi Auto Connect profile triggers MVW_PortalOnConnect on the
         'MVwifi' SSID (same municipal network, alternate SSID)."""
         project = build_termux_project()
         xml_text = generate_project_xml(project)
@@ -612,7 +571,7 @@ class TestTermuxProject:
             for p in root.findall("Profile")
             if p.find("nme").text == "MVW MVwifi Auto Connect"
         )
-        assert profile.find("mid0").text == "80"  # MVW_ConnectAndRun
+        assert profile.find("mid0").text == "81"  # MVW_PortalOnConnect
         state = profile.find("State")
         assert state.find("code").text == "160"  # WiFi Connected
         assert state.find("Str").text == "MVwifi"
@@ -663,17 +622,17 @@ class TestTermuxProject:
         assert action.args[3].value == "1"  # Add Newline
 
     def test_connect_and_run_starts_with_history_marker(self):
-        """MVW_ConnectAndRun must record a Tasker-side marker first, so a
+        """MVW_PortalOnConnect must record a Tasker-side marker first, so a
         missing Termux-side entry can be distinguished from 'profile
         never fired'."""
         project = build_termux_project()
         xml_text = generate_project_xml(project)
         root = fromstring(xml_text)
         tasks = root.findall("Task")
-        connect_task = next(
-            t for t in tasks if t.find("nme").text == "MVW_ConnectAndRun"
+        task = next(
+            t for t in tasks if t.find("nme").text == "MVW_PortalOnConnect"
         )
-        first = connect_task.findall("Action")[0]
+        first = task.findall("Action")[0]
         assert first.find("code").text == str(CODE_WRITE_FILE)
         assert "mvwifi_history.log" in first.find("Str").text
 
