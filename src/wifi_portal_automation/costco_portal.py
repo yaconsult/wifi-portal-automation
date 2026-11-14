@@ -28,6 +28,7 @@ import html
 import logging
 import sys
 import time
+from collections.abc import Mapping
 from pathlib import Path
 from urllib.parse import urljoin
 
@@ -57,6 +58,24 @@ class CostcoPortalError(Exception):
     """Costco portal operation error."""
 
     pass
+
+
+def _safe_url(url: str) -> str:
+    """Strip the query string from a URL for logging.
+
+    Captive-portal redirect URLs (Mist in particular) carry the
+    client MAC and session tokens in the query — a location-linked
+    identifier that shouldn't land in logs on shared storage.
+    """
+    return url.split("?", 1)[0]
+
+
+def _safe_headers(headers: Mapping[str, str]) -> dict[str, str]:
+    """Return response headers with credential-carrying ones removed."""
+    sensitive = {"set-cookie", "cookie", "authorization", "www-authenticate"}
+    return {
+        k: v for k, v in headers.items() if k.lower() not in sensitive
+    }
 
 
 def find_tos_form(page_html: str) -> PortalForm | None:
@@ -158,7 +177,7 @@ def accept_costco_terms(
     headers = {"User-Agent": DEFAULT_USER_AGENT}
 
     try:
-        logger.info("Fetching portal page: %s", redirect_url)
+        logger.info("Fetching portal page: %s", _safe_url(redirect_url))
         page = get_func(redirect_url, headers=headers, timeout=timeout)
         logger.info(
             "Portal page: status=%d, %d bytes, %d form(s)",
@@ -202,8 +221,9 @@ def accept_costco_terms(
             _save_debug_page(
                 debug_dir,
                 "portal_post_rejected.txt",
-                f"status={response.status_code}\nurl={response.url}\n"
-                f"headers={dict(response.headers)}\n",
+                f"status={response.status_code}\n"
+                f"url={_safe_url(response.url)}\n"
+                f"headers={_safe_headers(response.headers)}\n",
             )
             logger.warning("Costco portal POST returned %d", response.status_code)
             return False
@@ -254,7 +274,7 @@ def handle_costco_connection(
             logger.info(
                 "Detection: captive=%s, redirect=%s",
                 is_captive,
-                redirect_url or "(none)",
+                _safe_url(redirect_url) if redirect_url else "(none)",
             )
             if not is_captive or not redirect_url:
                 # No portal detected — might already have internet

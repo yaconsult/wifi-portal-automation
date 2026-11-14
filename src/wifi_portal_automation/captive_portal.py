@@ -200,8 +200,10 @@ def detect_captive_portal(
         # Check if response content is the expected success response
         if response.status_code == 200:
             content = response.text
-            # Firefox success marker
-            if "success" in content.lower() or "<" not in content:
+            # Firefox success.txt is exactly "success\n" — a substring
+            # match also fires on portal HTML with jQuery `success:`
+            # handlers and reports a captive network as connected.
+            if content.strip().lower() == "success" or "<" not in content:
                 return False, None
             # If we got HTML, might be a captive portal
             if "<html" in content.lower():
@@ -305,7 +307,10 @@ def verify_internet_connectivity(
             allow_redirects=False,
         )
         # Should get 200 with "success" content if truly connected
-        return response.status_code == 200 and "success" in response.text.lower()
+        return (
+            response.status_code == 200
+            and response.text.strip().lower() == "success"
+        )
     except _RequestsRequestException:
         return False
 

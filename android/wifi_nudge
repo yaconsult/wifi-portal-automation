@@ -21,7 +21,11 @@
 # bounded to the last 200 lines.
 HIST=/data/data/com.termux/files/home/storage/shared/Tasker/mvwifi_history.log
 PHANTOM="$(/system/bin/settings get global settings_enable_monitor_phantom_procs 2>/dev/null)"
-echo "$(date '+%F %T') | termux | nudge start | phantom=$PHANTOM" >> "$HIST" 2>/dev/null
+# Stamp the deployed code rev — stale phone-side code previously ran
+# silently against newer Tasker args (phone_pull.sh is the only
+# update channel since the repo is private).
+REV="$(/data/data/com.termux/files/usr/bin/git -C ~/wifi-portal-automation rev-parse --short HEAD 2>/dev/null || echo '?')"
+echo "$(date '+%F %T') | termux | nudge start | phantom=$PHANTOM rev=$REV" >> "$HIST" 2>/dev/null
 
 /system/bin/settings put global settings_enable_monitor_phantom_procs false 2>/dev/null || true
 

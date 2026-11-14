@@ -26,7 +26,7 @@
 		<Action sr="act0" ve="7">
 			<code>123</code>
 			<label>Staleness check — Tasker-fresh/Termux-stale &gt;1h, both &gt;24h, or a no_root streak echoes STALE</label>
-			<Str sr="arg0" ve="3">H=/sdcard/Tasker/mvwifi_history.log; N=/sdcard/mvwifi_nudge.log; W=/sdcard/Tasker/mvwifi_watchdog.log; NOW=$(date +%s); HAGE=$(( NOW - $(stat -c %Y $H 2&gt;/dev/null || echo 0) )); NAGE=$(( NOW - $(stat -c %Y $N 2&gt;/dev/null || echo 0) )); DETAIL=; if [ $HAGE -lt 3600 ] &amp;&amp; [ $NAGE -gt 3600 ]; then DETAIL=termux-silent; fi; if [ $HAGE -gt 86400 ]; then DETAIL="$DETAIL tasker-silent"; fi; if [ $(tail -20 $N 2&gt;/dev/null | grep -c no_root) -ge 3 ]; then DETAIL="$DETAIL no_root-streak"; fi; if [ -n "$DETAIL" ]; then echo "$NOW | watchdog | stale:$DETAIL" &gt;&gt; $W; echo STALE; fi</Str>
+			<Str sr="arg0" ve="3">H=/sdcard/Tasker/mvwifi_history.log; N=/sdcard/mvwifi_nudge.log; W=/sdcard/Tasker/mvwifi_watchdog.log; NOW=$(date +%s); HAGE=$(( NOW - $(stat -c %Y $H 2&gt;/dev/null || echo 0) )); NAGE=$(( NOW - $(stat -c %Y $N 2&gt;/dev/null || echo 0) )); DETAIL=; if [ $HAGE -lt 3600 ] &amp;&amp; [ $NAGE -gt 3600 ]; then DETAIL=termux-silent; fi; if [ $HAGE -gt 86400 ]; then DETAIL="$DETAIL tasker-silent"; fi; NRES=$(tail -20 $N 2&gt;/dev/null); if [ $(echo "$NRES" | grep -c no_root) -ge 3 ]; then DETAIL="$DETAIL no_root-streak"; fi; if [ $(echo "$NRES" | grep -c "ok=False") -ge 3 ]; then DETAIL="$DETAIL nudge-failing"; fi; if [ -n "$DETAIL" ]; then echo "$NOW | watchdog | stale:$DETAIL" &gt;&gt; $W; echo STALE; fi</Str>
 			<Int sr="arg1" val="10" />
 			<Int sr="arg2" val="0" />
 			<Str sr="arg3" ve="3">%output</Str>

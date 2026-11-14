@@ -1,0 +1,29 @@
+#!/data/data/com.termux/files/usr/bin/sh
+# Tasker-independent silence watchdog — the last line of detection.
+#
+# The Tasker-side MVwifiWatchdog project covers Termux death, project
+# deletion, and broken root, but it dies WITH Tasker — if Tasker
+# itself is force-stopped or removed, everything goes quiet with no
+# alert.  This script runs under termux-job-scheduler (Android's
+# JobScheduler via the Termux:API app), so it survives Tasker's
+# death.  Termux dying is covered by the Tasker-side watchdog in the
+# other direction — the two monitor each other.
+#
+# Requires the Termux:API app + `pkg install termux-api`, then
+# register once (hourly):
+#   termux-job-scheduler --script /data/data/com.termux/files/usr/bin/mvwifi_sched_watchdog --period-ms 3600000
+#
+# Exits nonzero when stale so the scheduler job result shows failure.
+
+HIST=/data/data/com.termux/files/home/storage/shared/Tasker/mvwifi_history.log
+NOW=$(date +%s)
+AGE=$(( NOW - $(stat -c %Y "$HIST" 2>/dev/null || echo 0) ))
+
+if [ "$AGE" -gt 86400 ]; then
+    termux-notification \
+        --title "MVwifiAuto silent (Tasker-side monitor gone)" \
+        --content "No history activity in ${AGE}s — Tasker may be dead or the project deleted" \
+        --priority high 2>/dev/null || true
+    exit 1
+fi
+exit 0

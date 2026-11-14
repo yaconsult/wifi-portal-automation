@@ -109,6 +109,14 @@ class WifiStatus:
     connected_ssid: str | None
 
 
+# Scan results older than this are cached BSSIDs from a previous
+# scan — a ghost cmvwifi can trigger promotion off a working
+# xfinitywifi, or keep the fallback nudge deferred forever.
+MAX_SCAN_AGE_SEC = 30.0
+# Weak signals join unreliably; don't count them as "visible".
+MIN_RSSI_DBM = -75
+
+
 @dataclass
 class ScanResult:
     """One row of ``cmd wifi list-scan-results``."""
@@ -117,6 +125,7 @@ class ScanResult:
     frequency: int
     rssi: int
     ssid: str  # empty for hidden networks
+    age: float  # seconds since the result was produced
 
 
 @dataclass
@@ -126,9 +135,9 @@ class NudgeReport:
     action: str
     """Terminal state: already_connected, connected_elsewhere,
     fallback_stay, wifi_disabled, target_absent, deferred,
-    connect_requested, promoted, dry_run, no_root, status_failed,
-    scan_failed, connect_failed, throttled, portal_rehandled, or
-    portal_recheck_failed."""
+    connect_requested, connect_unconfirmed, promoted, dry_run,
+    no_root, status_failed, scan_failed, connect_failed, throttled,
+    portal_rehandled, or portal_recheck_failed."""
 
     ok: bool
     wifi_enabled: bool = False
@@ -185,9 +194,32 @@ def parse_scan_results(text: str) -> list[ScanResult]:
                 frequency=int(match.group("freq")),
                 rssi=int(match.group("rssi")),
                 ssid=ssid,
+                age=float(match.group("age")),
             )
         )
     return results
+
+
+def filter_fresh_strong(
+    results: list[ScanResult],
+    max_age: float = MAX_SCAN_AGE_SEC,
+    min_rssi: int = MIN_RSSI_DBM,
+) -> list[ScanResult]:
+    """Drop stale and weak scan results.
+
+    ``list-scan-results`` retains BSSIDs from previous scans for
+    minutes, so a network that left range still looks "visible" and
+    can drive a wrong join/promotion/deferral decision.
+
+    Args:
+        results: Parsed scan rows.
+        max_age: Keep results no older than this many seconds.
+        min_rssi: Keep results at least this strong (dBm).
+
+    Returns:
+        The subset of *results* that are both fresh and strong.
+    """
+    return [r for r in results if r.age <= max_age and r.rssi >= min_rssi]
 
 
 def _report(
@@ -284,6 +316,7 @@ def run_nudge(
     state_file: Path | None = None,
     portal_ssids: tuple[str, ...] = (),
     on_unvalidated: Callable[[], bool] | None = None,
+    confirm_delay: float = 5.0,
 ) -> NudgeReport:
     """Check WiFi state and request a join if a target SSID is visible.
 
@@ -322,6 +355,10 @@ def run_nudge(
             *portal_ssids* entry whose network is not validated —
             should run the portal handler and return its success.
             ``None`` disables the recheck entirely (no dumpsys call).
+        confirm_delay: Seconds to wait after ``connect-network``
+            before re-reading ``cmd wifi status`` to confirm the
+            association actually landed (``connect_unconfirmed``
+            otherwise).  0 skips the confirmation.
 
     Returns:
         A :class:`NudgeReport` describing what was decided and done.
@@ -379,7 +416,16 @@ def run_nudge(
         logger.error("list-scan-results failed (rc=%s): %s", rc, out.strip())
         return _report("scan_failed", False, status, targets)
 
-    visible = {r.ssid for r in parse_scan_results(out)}
+    all_results = parse_scan_results(out)
+    fresh = filter_fresh_strong(all_results)
+    visible = {r.ssid for r in fresh}
+    stale_ssids = {
+        r.ssid for r in all_results if r.ssid and r.ssid not in visible
+    }
+    if stale_ssids:
+        logger.info(
+            "ignored stale/weak scan results: %s", sorted(stale_ssids)
+        )
     hits = [t for t in targets if t in visible]
     logger.info("scan: %d targets visible: %s", len(hits), hits or "none")
     if on_fallback:
@@ -411,6 +457,24 @@ def run_nudge(
             "connect_failed", False, status, targets,
             visible_targets=hits, connect_rc=rc,
         )
+    if confirm_delay > 0:
+        # connect-network rc=0 is a request, not a result — session 10
+        # recorded it returning 0 without associating.  Re-read the
+        # status and confirm we actually landed on the target.
+        time.sleep(confirm_delay)
+        rc2, out2 = run_root(su, "cmd wifi status")
+        now_connected = (
+            rc2 == 0 and parse_wifi_status(out2).connected_ssid == hits[0]
+        )
+        if not now_connected:
+            logger.warning(
+                "connect-network rc=0 but not associated to %s after %ss",
+                hits[0], confirm_delay,
+            )
+            return _report(
+                "connect_unconfirmed", False, status, targets,
+                visible_targets=hits, connect_rc=rc,
+            )
     return _report(
         action, True, status, targets,
         visible_targets=hits, connect_rc=rc,

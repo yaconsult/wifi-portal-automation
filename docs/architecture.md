@@ -281,11 +281,11 @@ the portal.
      always scan to keep the poll deterministic
 1. Tasker WiFi Connected profile fires on association to "cmvwifi"
    or "MVwifi" (same municipal network, alternate SSID)
-2. ConnectAndRun task runs:
-   a. If %WIFII already ~ "cmvwifi" → skip to step c
-   b. Else Connect to WiFi "cmvwifi" (Tasker Settings app)
-   c. Wait 5s for DHCP
-   d. Perform Task "RunPortalScript"
+2. MVW_PortalOnConnect task runs: history marker → Termux self-heal
+   (pidof + headless service resurrection) → Perform Task
+   "MVW_RunPortalScript" → Flash.  There is deliberately no
+   Connect-to-WiFi step — the WiFi Connected profile guarantees
+   association, and a hardcoded connect could steal the sibling SSID.
 3. RunPortalScript → Termux:Tasker plugin →
    ~/.termux/tasker/mvwifi_portal → wpa-android --once
 4. Python: bind session to wlan0, GET canonical.html,

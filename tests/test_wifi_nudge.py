@@ -5,6 +5,7 @@ Sample outputs are verbatim captures from `cmd wifi status` and
 """
 
 import json
+import re
 import time
 from unittest.mock import patch
 
@@ -52,12 +53,45 @@ Wifi is disabled
 # names are absent here but covered by SSID flags splitting).
 SCAN_RESULTS = """\
     BSSID              Frequency      RSSI           Age(sec)     SSID                                 Flags
-  22:61:b4:19:20:a6       2452        -90            148.587                                      [WPA2-PSK-CCMP-128][ESS]
-  94:b3:4f:63:9e:e0       2412        -57            148.587    cmvwifi                           [ESS]
-  94:b3:4f:a3:9e:e0       5540        -63            148.587    cmvwifi                           [ESS]
-  62:22:32:fd:b3:26       6135        -67            148.587    CSA_Staff_Secure                  [WPA2-EAP/SHA256-CCMP-128][ESS]
-  94:b3:4f:62:f8:20       2462        -82            148.587    cmvwifi                           [ESS]
+  22:61:b4:19:20:a6       2452        -90            3.210                                       [WPA2-PSK-CCMP-128][ESS]
+  94:b3:4f:63:9e:e0       2412        -57            3.210       cmvwifi                           [ESS]
+  94:b3:4f:a3:9e:e0       5540        -63            3.210       cmvwifi                           [ESS]
+  62:22:32:fd:b3:26       6135        -67            3.210       CSA_Staff_Secure                  [WPA2-EAP/SHA256-CCMP-128][ESS]
+  94:b3:4f:62:f8:20       2462        -82            148.587     cmvwifi                           [ESS]
 """
+
+# The last row is both stale (>30s) and weak (<-75dBm) — the filter
+# drops it, but cmvwifi stays visible through the two strong rows.
+
+
+def _confirming_fake(
+    status_before, connected_ssid, scan_text=SCAN_RESULTS, commands=None
+):
+    """Fake run_root: *status_before* until ``connect-network`` runs,
+    then reports connected to *connected_ssid* — models the real
+    post-connect association so the confirmation re-check passes."""
+    state = {"connected": False}
+
+    def fake(su, command, timeout=30):
+        if commands is not None:
+            commands.append(command)
+        if "connect-network" in command:
+            state["connected"] = True
+            return (0, "")
+        if "status" in command:
+            if state["connected"]:
+                return (
+                    0,
+                    STATUS_CONNECTED.replace("cmvwifi", connected_ssid),
+                )
+            return (0, status_before)
+        if "start-scan" in command:
+            return (0, "")
+        if "list-scan-results" in command:
+            return (0, scan_text)
+        return (1, f"unexpected command: {command}")
+
+    return fake
 
 
 def _fake_run_root(responses: dict[str, tuple[int, str]]):
@@ -314,21 +348,13 @@ class TestRunNudge:
 
     def test_connects_when_target_visible(self):
         commands: list[str] = []
-
-        def fake(su, command, timeout=30):
-            commands.append(command)
-            if "status" in command:
-                return (0, STATUS_DISCONNECTED)
-            if "start-scan" in command:
-                return (0, "")
-            if "list-scan-results" in command:
-                return (0, SCAN_RESULTS)
-            if "connect-network" in command:
-                return (0, "")
-            return (1, "unexpected")
-
         with (
-            patch("wifi_portal_automation.wifi_nudge.run_root", side_effect=fake),
+            patch(
+                "wifi_portal_automation.wifi_nudge.run_root",
+                side_effect=_confirming_fake(
+                    STATUS_DISCONNECTED, "cmvwifi", commands=commands
+                ),
+            ),
             patch("wifi_portal_automation.wifi_nudge.time.sleep"),
         ):
             report = run_nudge("su", ["cmvwifi"], settle=0)
@@ -336,6 +362,49 @@ class TestRunNudge:
         assert report.ok is True
         assert report.connect_rc == 0
         assert "cmd wifi connect-network cmvwifi open" in commands
+
+    def test_connect_unconfirmed_when_never_associates(self):
+        """rc=0 from connect-network is a request, not a result —
+        session 10 recorded it returning 0 without associating."""
+        with (
+            patch(
+                "wifi_portal_automation.wifi_nudge.run_root",
+                side_effect=_fake_run_root(
+                    {
+                        "status": (0, STATUS_DISCONNECTED),
+                        "start-scan": (0, ""),
+                        "list-scan-results": (0, SCAN_RESULTS),
+                        "connect-network": (0, ""),
+                    }
+                ),
+            ),
+            patch("wifi_portal_automation.wifi_nudge.time.sleep"),
+        ):
+            report = run_nudge("su", ["cmvwifi"], settle=0)
+        assert report.action == "connect_unconfirmed"
+        assert report.ok is False
+        assert report.connect_rc == 0
+
+    def test_stale_scan_results_ignored(self):
+        """Cached BSSIDs older than MAX_SCAN_AGE_SEC don't count as
+        visible — a ghost cmvwifi must not trigger a connect."""
+        stale = re.sub(r"\d+\.\d+", "148.587", SCAN_RESULTS)
+        with (
+            patch(
+                "wifi_portal_automation.wifi_nudge.run_root",
+                side_effect=_fake_run_root(
+                    {
+                        "status": (0, STATUS_DISCONNECTED),
+                        "start-scan": (0, ""),
+                        "list-scan-results": (0, stale),
+                    }
+                ),
+            ),
+            patch("wifi_portal_automation.wifi_nudge.time.sleep"),
+        ):
+            report = run_nudge("su", ["cmvwifi"], settle=0)
+        assert report.action == "target_absent"
+        assert report.visible_targets == []
 
     def test_dry_run_skips_connect(self):
         commands: list[str] = []
@@ -360,17 +429,16 @@ class TestRunNudge:
     def test_multi_word_ssid_quoted(self):
         commands: list[str] = []
         scan = SCAN_RESULTS.replace("cmvwifi", "Costco Member Wifi")
-
-        def fake(su, command, timeout=30):
-            commands.append(command)
-            if "status" in command:
-                return (0, STATUS_DISCONNECTED)
-            if "list-scan-results" in command:
-                return (0, scan)
-            return (0, "")
-
         with (
-            patch("wifi_portal_automation.wifi_nudge.run_root", side_effect=fake),
+            patch(
+                "wifi_portal_automation.wifi_nudge.run_root",
+                side_effect=_confirming_fake(
+                    STATUS_DISCONNECTED,
+                    "Costco Member Wifi",
+                    scan_text=scan,
+                    commands=commands,
+                ),
+            ),
             patch("wifi_portal_automation.wifi_nudge.time.sleep"),
         ):
             report = run_nudge("su", ["Costco Member Wifi"], settle=0)
@@ -437,17 +505,16 @@ class TestFallbacks:
 
     def test_promotes_to_visible_preferred(self):
         commands: list[str] = []
-
-        def fake(su, command, timeout=30):
-            commands.append(command)
-            if "status" in command:
-                return (0, STATUS_FALLBACK)
-            if "list-scan-results" in command:
-                return (0, SCAN_BOTH)
-            return (0, "")
-
         with (
-            patch("wifi_portal_automation.wifi_nudge.run_root", side_effect=fake),
+            patch(
+                "wifi_portal_automation.wifi_nudge.run_root",
+                side_effect=_confirming_fake(
+                    STATUS_FALLBACK,
+                    "cmvwifi",
+                    scan_text=SCAN_BOTH,
+                    commands=commands,
+                ),
+            ),
             patch("wifi_portal_automation.wifi_nudge.time.sleep"),
         ):
             report = run_nudge(
@@ -505,17 +572,16 @@ class TestFallbacks:
 
     def test_autojoin_disabled_connect(self):
         commands: list[str] = []
-
-        def fake(su, command, timeout=30):
-            commands.append(command)
-            if "status" in command:
-                return (0, STATUS_DISCONNECTED)
-            if "list-scan-results" in command:
-                return (0, SCAN_FALLBACK_ONLY)
-            return (0, "")
-
         with (
-            patch("wifi_portal_automation.wifi_nudge.run_root", side_effect=fake),
+            patch(
+                "wifi_portal_automation.wifi_nudge.run_root",
+                side_effect=_confirming_fake(
+                    STATUS_DISCONNECTED,
+                    "xfinitywifi",
+                    scan_text=SCAN_FALLBACK_ONLY,
+                    commands=commands,
+                ),
+            ),
             patch("wifi_portal_automation.wifi_nudge.time.sleep"),
         ):
             report = run_nudge(
@@ -532,17 +598,16 @@ class TestFallbacks:
         preferred SSIDs keep normal auto-join even if the run was
         configured --autojoin-disabled."""
         commands: list[str] = []
-
-        def fake(su, command, timeout=30):
-            commands.append(command)
-            if "status" in command:
-                return (0, STATUS_FALLBACK)
-            if "list-scan-results" in command:
-                return (0, SCAN_BOTH)
-            return (0, "")
-
         with (
-            patch("wifi_portal_automation.wifi_nudge.run_root", side_effect=fake),
+            patch(
+                "wifi_portal_automation.wifi_nudge.run_root",
+                side_effect=_confirming_fake(
+                    STATUS_FALLBACK,
+                    "cmvwifi",
+                    scan_text=SCAN_BOTH,
+                    commands=commands,
+                ),
+            ),
             patch("wifi_portal_automation.wifi_nudge.time.sleep"),
         ):
             report = run_nudge(
@@ -636,17 +701,16 @@ class TestDefer:
     def test_connects_when_no_defer_target_visible(self):
         """Disconnected + only the fallback visible -> connect."""
         commands: list[str] = []
-
-        def fake(su, command, timeout=30):
-            commands.append(command)
-            if "status" in command:
-                return (0, STATUS_DISCONNECTED)
-            if "list-scan-results" in command:
-                return (0, SCAN_FALLBACK_ONLY)
-            return (0, "")
-
         with (
-            patch("wifi_portal_automation.wifi_nudge.run_root", side_effect=fake),
+            patch(
+                "wifi_portal_automation.wifi_nudge.run_root",
+                side_effect=_confirming_fake(
+                    STATUS_DISCONNECTED,
+                    "xfinitywifi",
+                    scan_text=SCAN_FALLBACK_ONLY,
+                    commands=commands,
+                ),
+            ),
             patch("wifi_portal_automation.wifi_nudge.time.sleep"),
         ):
             report = run_nudge(
@@ -665,12 +729,8 @@ class TestDefer:
         with (
             patch(
                 "wifi_portal_automation.wifi_nudge.run_root",
-                side_effect=_fake_run_root(
-                    {
-                        "status": (0, STATUS_FALLBACK),
-                        "list-scan-results": (0, SCAN_BOTH),
-                        "connect-network": (0, ""),
-                    }
+                side_effect=_confirming_fake(
+                    STATUS_FALLBACK, "cmvwifi", scan_text=SCAN_BOTH
                 ),
             ),
             patch("wifi_portal_automation.wifi_nudge.time.sleep"),
@@ -781,17 +841,16 @@ class TestDefer:
             "Costco Member Wifi                   [ESS]\n"
         )
         commands: list[str] = []
-
-        def fake(su, command, timeout=30):
-            commands.append(command)
-            if "status" in command:
-                return (0, STATUS_FALLBACK)
-            if "list-scan-results" in command:
-                return (0, scan_with_costco)
-            return (0, "")
-
         with (
-            patch("wifi_portal_automation.wifi_nudge.run_root", side_effect=fake),
+            patch(
+                "wifi_portal_automation.wifi_nudge.run_root",
+                side_effect=_confirming_fake(
+                    STATUS_FALLBACK,
+                    "Costco Member Wifi",
+                    scan_text=scan_with_costco,
+                    commands=commands,
+                ),
+            ),
             patch("wifi_portal_automation.wifi_nudge.time.sleep"),
         ):
             report = run_nudge(
@@ -810,17 +869,13 @@ class TestDefer:
         """A defer_to SSID that is also this run's target must not
         self-defer — guard for overlapping configurations."""
         commands: list[str] = []
-
-        def fake(su, command, timeout=30):
-            commands.append(command)
-            if "status" in command:
-                return (0, STATUS_DISCONNECTED)
-            if "list-scan-results" in command:
-                return (0, SCAN_RESULTS)  # cmvwifi visible
-            return (0, "")
-
         with (
-            patch("wifi_portal_automation.wifi_nudge.run_root", side_effect=fake),
+            patch(
+                "wifi_portal_automation.wifi_nudge.run_root",
+                side_effect=_confirming_fake(
+                    STATUS_DISCONNECTED, "cmvwifi", commands=commands
+                ),
+            ),
             patch("wifi_portal_automation.wifi_nudge.time.sleep"),
         ):
             report = run_nudge(
@@ -938,26 +993,16 @@ class TestReport:
 class TestMinIntervalThrottle:
     """Test the --min-interval scan throttle (state-file backed)."""
 
-    _RESPONSES = {
-        "status": (0, STATUS_DISCONNECTED),
-        "start-scan": (0, ""),
-        "list-scan-results": (0, SCAN_RESULTS),
-        "connect-network": (0, ""),
-    }
-
     def _run(self, tmp_path, min_interval=300):
         commands: list[str] = []
-
-        def fake(su, command, timeout=30):
-            commands.append(command)
-            for key, response in self._RESPONSES.items():
-                if key in command:
-                    return response
-            return (1, f"unexpected: {command}")
-
         state = tmp_path / "last_scan"
         with (
-            patch("wifi_portal_automation.wifi_nudge.run_root", side_effect=fake),
+            patch(
+                "wifi_portal_automation.wifi_nudge.run_root",
+                side_effect=_confirming_fake(
+                    STATUS_DISCONNECTED, "cmvwifi", commands=commands
+                ),
+            ),
             patch("wifi_portal_automation.wifi_nudge.time.sleep"),
         ):
             report = run_nudge(

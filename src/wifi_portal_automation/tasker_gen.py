@@ -122,6 +122,15 @@ class TaskerArg:
         return cls(index=index, kind="Bundle", value=xml_content)
 
     @classmethod
+    def var_int_arg(cls, index: int, var: str) -> TaskerArg:
+        """Create an Int arg holding a variable reference.
+
+        Serializes as ``<Int sr="argN"><var>%name</var></Int>`` — the
+        form Tasker itself writes when a numeric field is set to a
+        variable (e.g. Perform Task priority = ``%priority``)."""
+        return cls(index=index, kind="IntVar", value=var)
+
+    @classmethod
     def img_arg(cls, index: int, ve: str = "2") -> TaskerArg:
         """Create an empty image/icon argument."""
         return cls(index=index, kind="Img", ve=ve)
@@ -248,6 +257,9 @@ def _add_arg(parent: Element, arg: TaskerArg) -> None:
             "Int",
             {"sr": f"arg{arg.index}", "val": arg.value},
         )
+    elif arg.kind == "IntVar":
+        int_elem = SubElement(parent, "Int", {"sr": f"arg{arg.index}"})
+        SubElement(int_elem, "var").text = arg.value
     elif arg.kind == "Img":
         SubElement(parent, "Img", {"sr": f"arg{arg.index}", "ve": arg.ve})
     elif arg.kind == "Bundle":
@@ -391,14 +403,24 @@ def perform_task(
     par1: str = "",
     stop_after: bool = False,
     wait_for_finish: bool = True,
-    priority: int = 0,
+    priority: int | None = None,
 ) -> TaskerAction:
-    """Build a Perform Task (code 130) action."""
+    """Build a Perform Task (code 130) action.
+
+    ``priority=None`` emits ``<var>%priority</var>`` — the form
+    Tasker's UI writes by default, meaning the child inherits the
+    caller's priority.  A literal 0 lets a queued nudge pre-empt the
+    portal child task.
+    """
     return TaskerAction(
         code=CODE_PERFORM_TASK,
         args=[
             TaskerArg.str_arg(0, name),
-            TaskerArg.int_arg(1, priority),
+            (
+                TaskerArg.var_int_arg(1, "%priority")
+                if priority is None
+                else TaskerArg.int_arg(1, priority)
+            ),
             TaskerArg.str_arg(2, par1),
             TaskerArg.str_arg(3),
             TaskerArg.str_arg(4),
@@ -1424,10 +1446,15 @@ def build_watchdog_project() -> TaskerProject:
                     # phone off (24h tolerates overnight shutdowns).
                     "if [ $HAGE -gt 86400 ]; "
                     "then DETAIL=\"$DETAIL tasker-silent\"; fi; "
-                    # Root broken (OTA/Magisk) shows as a no_root
-                    # streak while both logs stay fresh.
-                    "if [ $(tail -20 $N 2>/dev/null | grep -c no_root) "
+                    # Health, not just liveness: a streak of failed
+                    # nudge results (no_root after an OTA, repeated
+                    # connect/scan failures) while logs stay fresh.
+                    "NRES=$(tail -20 $N 2>/dev/null); "
+                    "if [ $(echo \"$NRES\" | grep -c no_root) "
                     "-ge 3 ]; then DETAIL=\"$DETAIL no_root-streak\"; "
+                    "fi; "
+                    "if [ $(echo \"$NRES\" | grep -c \"ok=False\") "
+                    "-ge 3 ]; then DETAIL=\"$DETAIL nudge-failing\"; "
                     "fi; "
                     "if [ -n \"$DETAIL\" ]; then "
                     "echo \"$NOW | watchdog | stale:$DETAIL\" >> $W; "

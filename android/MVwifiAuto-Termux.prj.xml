@@ -138,7 +138,7 @@
 			<code>410</code>
 			<label>History marker — proves Tasker fired even if Termux fails</label>
 			<Str sr="arg0" ve="3">Tasker/mvwifi_history.log</Str>
-			<Str sr="arg1" ve="3">%TIMES | tasker | MVW_PortalOnConnect fired [gen cf538c]</Str>
+			<Str sr="arg1" ve="3">%TIMES | tasker | MVW_PortalOnConnect fired [gen b3a19e]</Str>
 			<Int sr="arg2" val="1" />
 			<Int sr="arg3" val="1" />
 			<Int sr="arg4" val="0" />
@@ -161,7 +161,9 @@
 			<code>130</code>
 			<label>Portal handler via Termux:Tasker</label>
 			<Str sr="arg0" ve="3">MVW_RunPortalScript</Str>
-			<Int sr="arg1" val="0" />
+			<Int sr="arg1">
+				<var>%priority</var>
+			</Int>
 			<Str sr="arg2" ve="3" />
 			<Str sr="arg3" ve="3" />
 			<Str sr="arg4" ve="3" />
@@ -185,7 +187,7 @@
 			<code>410</code>
 			<label>History marker — proves Tasker fired even if Termux fails</label>
 			<Str sr="arg0" ve="3">Tasker/mvwifi_history.log</Str>
-			<Str sr="arg1" ve="3">%TIMES | tasker | MVW_CostcoConnect fired [gen cf538c]</Str>
+			<Str sr="arg1" ve="3">%TIMES | tasker | MVW_CostcoConnect fired [gen b3a19e]</Str>
 			<Int sr="arg2" val="1" />
 			<Int sr="arg3" val="1" />
 			<Int sr="arg4" val="0" />
@@ -243,7 +245,7 @@
 			<code>410</code>
 			<label>History marker — proves Tasker fired even if Termux fails</label>
 			<Str sr="arg0" ve="3">Tasker/mvwifi_history.log</Str>
-			<Str sr="arg1" ve="3">%TIMES | tasker | MVW_NudgeWifi fired [gen cf538c]</Str>
+			<Str sr="arg1" ve="3">%TIMES | tasker | MVW_NudgeWifi fired [gen b3a19e]</Str>
 			<Int sr="arg2" val="1" />
 			<Int sr="arg3" val="1" />
 			<Int sr="arg4" val="0" />
@@ -296,7 +298,7 @@
 			<code>410</code>
 			<label>History marker — proves Tasker fired even if Termux fails</label>
 			<Str sr="arg0" ve="3">Tasker/mvwifi_history.log</Str>
-			<Str sr="arg1" ve="3">%TIMES | tasker | MVW_NudgeXfinity fired [gen cf538c]</Str>
+			<Str sr="arg1" ve="3">%TIMES | tasker | MVW_NudgeXfinity fired [gen b3a19e]</Str>
 			<Int sr="arg2" val="1" />
 			<Int sr="arg3" val="1" />
 			<Int sr="arg4" val="0" />
@@ -348,7 +350,7 @@
 		<Action sr="act0" ve="7">
 			<code>548</code>
 			<label>Shows the imported project's generation stamp</label>
-			<Str sr="arg0" ve="3">MVwifiAuto-Termux gen cf538c</Str>
+			<Str sr="arg0" ve="3">MVwifiAuto-Termux gen b3a19e</Str>
 			<Int sr="arg1" val="0" />
 		</Action>
 	</Task>
@@ -359,7 +361,7 @@
 			<code>410</code>
 			<label>History marker — proves Tasker fired even if Termux fails</label>
 			<Str sr="arg0" ve="3">Tasker/mvwifi_history.log</Str>
-			<Str sr="arg1" ve="3">%TIMES | tasker | MVW_SHGuestCapture fired [gen cf538c]</Str>
+			<Str sr="arg1" ve="3">%TIMES | tasker | MVW_SHGuestCapture fired [gen b3a19e]</Str>
 			<Int sr="arg2" val="1" />
 			<Int sr="arg3" val="1" />
 			<Int sr="arg4" val="0" />
@@ -417,7 +419,7 @@
 			<code>410</code>
 			<label>History marker — proves Tasker fired even if Termux fails</label>
 			<Str sr="arg0" ve="3">Tasker/mvwifi_history.log</Str>
-			<Str sr="arg1" ve="3">%TIMES | tasker | MVW_UnlockNudge fired [gen cf538c]</Str>
+			<Str sr="arg1" ve="3">%TIMES | tasker | MVW_UnlockNudge fired [gen b3a19e]</Str>
 			<Int sr="arg2" val="1" />
 			<Int sr="arg3" val="1" />
 			<Int sr="arg4" val="0" />

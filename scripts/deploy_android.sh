@@ -57,14 +57,17 @@ echo ""
 
 # --- Step 1: Push Tasker XML ---
 echo "[1/6] Pushing Tasker XML..."
-if [ ! -f "$TASKER_XML" ]; then
-    echo "  Tasker XML not found. Generating..."
-    cd "$REPO_DIR"
-    uv run python -m wifi_portal_automation.tasker_gen --termux -o "$TASKER_XML"
-fi
+# Always regenerate — a stale committed file was already the cause of
+# one missed fix (the <con>/<se> serialization bug); generating is
+# cheap and guarantees the pushed XML matches this checkout.
+cd "$REPO_DIR"
+WATCHDOG_XML="$REPO_DIR/android/MVwifiWatchdog.prj.xml"
+uv run python -m wifi_portal_automation.tasker_gen --termux -o "$TASKER_XML"
+uv run python -m wifi_portal_automation.tasker_gen --watchdog -o "$WATCHDOG_XML"
 adb shell "mkdir -p /sdcard/Tasker/projects/" 2>/dev/null || true
 adb push "$TASKER_XML" /sdcard/Tasker/projects/MVwifiAuto-Termux.prj.xml
-echo "  Pushed to /sdcard/Tasker/projects/MVwifiAuto-Termux.prj.xml"
+adb push "$WATCHDOG_XML" /sdcard/Tasker/projects/MVwifiWatchdog.prj.xml
+echo "  Pushed both project XMLs to /sdcard/Tasker/projects/"
 # Remove stray copies elsewhere on /sdcard — Tasker's import dialog
 # can surface them, and importing a stale copy silently restores old
 # task definitions (the file there is only an import source; Tasker
@@ -76,10 +79,20 @@ echo ""
 echo "[2/6] Creating Termux wrapper scripts..."
 adb shell "su -c 'mkdir -p $TASKER_DIR'"
 for name in mvwifi_portal costco_portal costco_probe wifi_nudge cmvwifi_nudge shguest_probe; do
-    adb push "$REPO_DIR/android/$name" "/sdcard/$name.tmp"
-    adb shell "su -c 'cp /sdcard/$name.tmp $TASKER_DIR/$name && chmod 755 $TASKER_DIR/$name && chown $TERMUX_UID:$TERMUX_UID $TASKER_DIR/$name && rm /sdcard/$name.tmp'"
+    # Stage in /data/local/tmp (shell-writable, root-readable) rather
+    # than /sdcard — shared storage lets any app swap the file between
+    # the push and the root copy.
+    adb push "$REPO_DIR/android/$name" "/data/local/tmp/$name.tmp"
+    adb shell "su -c 'cp /data/local/tmp/$name.tmp $TASKER_DIR/$name && chmod 755 $TASKER_DIR/$name && chown $TERMUX_UID:$TERMUX_UID $TASKER_DIR/$name && rm /data/local/tmp/$name.tmp'"
     echo "  Created: $TASKER_DIR/$name"
 done
+# Tasker-independent watchdog for termux-job-scheduler (R9 — survives
+# a dead Tasker, which kills the Tasker-side watchdog too).  Goes to
+# Termux bin, not the tasker dir — it isn't a plugin script.
+TERMUX_USR_BIN="/data/data/com.termux/files/usr/bin"
+adb push "$REPO_DIR/android/sched_watchdog" "/data/local/tmp/sched_watchdog.tmp"
+adb shell "su -c 'cp /data/local/tmp/sched_watchdog.tmp $TERMUX_USR_BIN/mvwifi_sched_watchdog && chmod 755 $TERMUX_USR_BIN/mvwifi_sched_watchdog && chown $TERMUX_UID:$TERMUX_UID $TERMUX_USR_BIN/mvwifi_sched_watchdog && rm /data/local/tmp/sched_watchdog.tmp'"
+echo "  Created: $TERMUX_USR_BIN/mvwifi_sched_watchdog (register: termux-job-scheduler --script $TERMUX_USR_BIN/mvwifi_sched_watchdog --period-ms 3600000)"
 echo ""
 
 # --- Step 3: Enable allow-external-apps ---

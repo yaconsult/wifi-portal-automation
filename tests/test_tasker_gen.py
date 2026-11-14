@@ -31,6 +31,7 @@ from wifi_portal_automation.tasker_gen import (
     TaskerArg,
     TaskerProject,
     TaskerTask,
+    _add_arg,
     _add_task,
     build_mvwifi_project,
     build_termux_project,
@@ -123,6 +124,20 @@ class TestActionBuilders:
         assert action.args[0].value == "SomeTask"
         assert action.args[2].value == "hello"
         assert action.args[10].value == "1"  # wait_for_finish
+
+    def test_perform_task_inherits_priority(self):
+        """Default priority is <var>%priority</var> (Tasker's own UI
+        default) — a literal 0 lets a queued nudge pre-empt the
+        portal child task (verified against a Tasker export)."""
+        action = perform_task("SomeTask")
+        arg = action.args[1]
+        assert arg.kind == "IntVar" and arg.value == "%priority"
+        # Serialization check: <Int sr="arg1"><var>%priority</var></Int>
+        root = Element("Action")
+        _add_arg(root, arg)
+        int_elem = root.find("Int")
+        assert int_elem.find("var").text == "%priority"
+        assert int_elem.get("val") is None
 
     def test_flash(self):
         action = flash("test message")
