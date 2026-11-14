@@ -153,13 +153,22 @@ class TaskerAction:
     label: str = ""
 
 
+# Tasker task collision handling (<rty>): what Tasker does when the
+# task is invoked while already running.  Verified against Tasker's
+# persisted export — this is NOT priority, despite the field sitting
+# next to <pri> in Tasker's UI.
+COLLISION_ABORT_NEW = 0      # drop the new invocation
+COLLISION_ABORT_EXISTING = 1  # kill the running instance, run the new one
+COLLISION_RUN_BOTH = 2       # run both concurrently
+
+
 @dataclass
 class TaskerTask:
     """A Tasker task."""
 
     id: int
     name: str
-    priority: int = 2
+    collision: int = COLLISION_ABORT_NEW
     actions: list[TaskerAction] = field(default_factory=list)
 
 
@@ -246,12 +255,10 @@ def _add_arg(parent: Element, arg: TaskerArg) -> None:
         # Parse the bundle XML string and insert it as child elements.
         # If we set it as .text, the XML special characters get escaped
         # (&lt; instead of <), which Tasker cannot parse as nested bundle data.
-        try:
-            bundle_root = fromstring(arg.value)
-            bundle.append(bundle_root)
-        except Exception:
-            # If for some reason it's not valid XML, keep the original text
-            bundle.text = arg.value
+        # Malformed input raises — a silent fallback imports as a plugin
+        # action with no configuration and no error.
+        bundle_root = fromstring(arg.value)
+        bundle.append(bundle_root)
 
 
 def _add_action(task_elem: Element, index: int, action: TaskerAction) -> None:
@@ -284,7 +291,7 @@ def _add_task(root: Element, task: TaskerTask) -> None:
     task_elem = SubElement(root, "Task", {"sr": f"task{task.id}"})
     SubElement(task_elem, "id").text = str(task.id)
     SubElement(task_elem, "nme").text = task.name
-    SubElement(task_elem, "rty").text = str(task.priority)
+    SubElement(task_elem, "rty").text = str(task.collision)
     for i, action in enumerate(task.actions):
         _add_action(task_elem, i, action)
 
@@ -683,39 +690,29 @@ def termux_task(
     """
     # Build the Bundle XML matching the official Termux:Tasker template.
     # The Bundle contains plugin-specific extras that Tasker passes to
-    # Termux:Tasker's FireReceiver.
+    # Termux:Tasker's FireReceiver.  Values go through SubElement so
+    # special characters (e.g. `&` in arguments) escape correctly —
+    # interpolating raw text would produce malformed XML that Tasker
+    # imports as a plugin action with no configuration and no error.
     blurb = f"{executable} {arguments}".strip()
-    bundle_xml = (
-        '<Vals sr="val">'
-        f"<com.termux.execute.arguments>{arguments}</com.termux.execute.arguments>"
-        "<com.termux.execute.arguments-type>java.lang.String"
-        "</com.termux.execute.arguments-type>"
-        f"<com.termux.tasker.extra.EXECUTABLE>{executable}"
-        "</com.termux.tasker.extra.EXECUTABLE>"
-        "<com.termux.tasker.extra.EXECUTABLE-type>java.lang.String"
-        "</com.termux.tasker.extra.EXECUTABLE-type>"
-        f"<com.termux.tasker.extra.TERMINAL>"
-        f"{'false' if background else 'true'}"
-        "</com.termux.tasker.extra.TERMINAL>"
-        "<com.termux.tasker.extra.TERMINAL-type>java.lang.Boolean"
-        "</com.termux.tasker.extra.TERMINAL-type>"
-        "<com.termux.tasker.extra.VERSION_CODE>4"
-        "</com.termux.tasker.extra.VERSION_CODE>"
-        "<com.termux.tasker.extra.VERSION_CODE-type>java.lang.Integer"
-        "</com.termux.tasker.extra.VERSION_CODE-type>"
-        "<com.termux.tasker.extra.WORKDIR></com.termux.tasker.extra.WORKDIR>"
-        "<com.termux.tasker.extra.WORKDIR-type>java.lang.String"
-        "</com.termux.tasker.extra.WORKDIR-type>"
-        f"<com.twofortyfouram.locale.intent.extra.BLURB>{blurb}"
-        "</com.twofortyfouram.locale.intent.extra.BLURB>"
-        "<com.twofortyfouram.locale.intent.extra.BLURB-type>java.lang.String"
-        "</com.twofortyfouram.locale.intent.extra.BLURB-type>"
-        "<net.dinglisch.android.tasker.subbundled>true"
-        "</net.dinglisch.android.tasker.subbundled>"
-        "<net.dinglisch.android.tasker.subbundled-type>java.lang.Boolean"
-        "</net.dinglisch.android.tasker.subbundled-type>"
-        "</Vals>"
+    vals = Element("Vals", {"sr": "val"})
+    extras = (
+        ("com.termux.execute.arguments", arguments, "java.lang.String"),
+        ("com.termux.tasker.extra.EXECUTABLE", executable,
+         "java.lang.String"),
+        ("com.termux.tasker.extra.TERMINAL",
+         "false" if background else "true", "java.lang.Boolean"),
+        ("com.termux.tasker.extra.VERSION_CODE", "4", "java.lang.Integer"),
+        ("com.termux.tasker.extra.WORKDIR", "", "java.lang.String"),
+        ("com.twofortyfouram.locale.intent.extra.BLURB", blurb,
+         "java.lang.String"),
+        ("net.dinglisch.android.tasker.subbundled", "true",
+         "java.lang.Boolean"),
     )
+    for key, val, vtype in extras:
+        SubElement(vals, key).text = val
+        SubElement(vals, f"{key}-type").text = vtype
+    bundle_xml = tostring(vals, encoding="unicode")
     return TaskerAction(
         code=CODE_TERMUX_TASK,
         args=[
@@ -847,8 +844,11 @@ def _build_connect_to_cmvwifi_task() -> TaskerTask:
         id=50,
         name="ConnectToCmvwifi",
         actions=[
-            # A1: If already connected to cmvwifi
-            if_condition("%WIFII", "cmvwifi"),
+            # A1: If already connected to cmvwifi — the ~ op is a
+            # whole-string match and %WIFII is a multi-line blob, so
+            # a bare "cmvwifi" RHS can never match; *cmvwifi* is the
+            # contains-style form.
+            if_condition("%WIFII", "*cmvwifi*"),
             # A2: Already connected, go straight to portal
             perform_task("HandlePortal", wait_for_finish=True),
             # A3: Else - not connected

@@ -138,6 +138,26 @@ class TestMain:
         call_kwargs = mock_run.call_args.kwargs
         assert call_kwargs["max_portal_attempts"] == 5
 
+    def test_main_portal_error_returns_1(self, caplog):
+        """A CaptivePortalError after the final retry still records
+        the outcome line and returns 1 — an uncaught traceback leaves
+        no "Run FAILED" marker, which reads as 'process killed'."""
+        import logging
+
+        from wifi_portal_automation.captive_portal import CaptivePortalError
+
+        with (
+            patch(
+                "wifi_portal_automation.android.run_once",
+                side_effect=CaptivePortalError("portal gone"),
+            ),
+            caplog.at_level(logging.INFO),
+        ):
+            exit_code = main(["--once"])
+
+        assert exit_code == 1
+        assert "Run FAILED" in caplog.text
+
     def test_log_file_kept_on_success(self, tmp_path):
         """Test that the log file is kept (overwritten) on success."""
         log_file = tmp_path / "mvwifi.log"

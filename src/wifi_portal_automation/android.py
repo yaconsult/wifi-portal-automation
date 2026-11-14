@@ -23,7 +23,10 @@ import argparse
 import logging
 import sys
 
-from wifi_portal_automation.captive_portal import handle_cmvwifi_connection
+from wifi_portal_automation.captive_portal import (
+    CaptivePortalError,
+    handle_cmvwifi_connection,
+)
 from wifi_portal_automation.wifi_binding import (
     InterfaceBindingError,
     InterfaceBoundAdapter,
@@ -138,11 +141,20 @@ def main(argv: list[str] | None = None) -> int:
         except OSError as e:
             print(f"Warning: cannot write to {args.log_file}: {e}")
 
-    success = run_once(
-        interface=args.interface,
-        verbose=args.verbose,
-        max_portal_attempts=args.max_attempts,
-    )
+    # CaptivePortalError propagates after the final retry — catch it
+    # so the run still records its outcome line.  An uncaught
+    # traceback leaves no "Run FAILED" marker, which troubleshooting
+    # docs treat as "the process was killed" — a false diagnosis.
+    try:
+        success = run_once(
+            interface=args.interface,
+            verbose=args.verbose,
+            max_portal_attempts=args.max_attempts,
+        )
+    except CaptivePortalError as e:
+        logging.error("%s", e)
+        logging.info("Run FAILED")
+        return 1
 
     # The log file is overwritten each run (mode="w") and kept on
     # success, so its last line always records the outcome of the

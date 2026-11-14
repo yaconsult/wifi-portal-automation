@@ -1,7 +1,7 @@
 """Tests for the Tasker XML generator."""
 
 from xml.dom.minidom import parseString
-from xml.etree.ElementTree import fromstring, tostring
+from xml.etree.ElementTree import ParseError, fromstring, tostring
 
 import pytest
 
@@ -24,6 +24,7 @@ from wifi_portal_automation.tasker_gen import (
     CODE_WIFI_CONNECTED_STATE,
     CODE_WIFI_NEAR_STATE,
     CODE_WRITE_FILE,
+    COLLISION_ABORT_NEW,
     OP_EQUALS,
     TaskerAction,
     TaskerArg,
@@ -31,6 +32,7 @@ from wifi_portal_automation.tasker_gen import (
     TaskerTask,
     build_mvwifi_project,
     build_termux_project,
+    build_watchdog_project,
     connect_wifi,
     else_action,
     end_if,
@@ -961,3 +963,153 @@ class TestGenerationStamp:
         task = next(t for t in root.findall("Task") if t.find("nme").text == "MVW_ShowVersion")
         strs = list(task.iter("Str"))
         assert any("MVwifiAuto-Termux gen " in (a.get("val") or a.text or "") for a in strs)
+
+
+class TestCollisionSemantics:
+    """<rty> is task collision handling, NOT priority — Tasker reads
+    0=Abort New Task, 1=Abort Existing Task, 2=Run Both Together.
+    Same bug class as <con>: plausible XML meaning something else."""
+
+    def test_all_tasks_use_abort_new(self):
+        """Every task deliberately serializes Abort New — a duplicate
+        tick firing while a run is in flight must be dropped, not
+        run concurrently (Run Both was the old accidental value)."""
+        for project in (
+            build_termux_project(),
+            build_watchdog_project(),
+            build_mvwifi_project(),
+        ):
+            for task in project.tasks:
+                assert task.collision == COLLISION_ABORT_NEW, task.name
+
+    def test_rty_serializes_collision(self):
+        root = fromstring(generate_project_xml(build_termux_project()))
+        for task in root.findall("Task"):
+            assert int(task.find("rty").text) == COLLISION_ABORT_NEW
+
+
+class TestBundleSerialization:
+    """Plugin bundle values must round-trip through XML escaping —
+    unescaped interpolation produced malformed XML that Tasker
+    imported as a plugin action with no configuration (D6)."""
+
+    def test_special_chars_escaped(self):
+        action = termux_task(executable="probe", arguments="a & b < c")
+        bundle_root = fromstring(action.args[0].value)
+        args_elem = bundle_root.find("com.termux.execute.arguments")
+        assert args_elem.text == "a & b < c"
+        blurb = bundle_root.find(
+            "com.twofortyfouram.locale.intent.extra.BLURB"
+        )
+        assert blurb.text == "probe a & b < c"
+
+    def test_bundle_structure_preserved(self):
+        """Generated bundle still matches the Termux:Tasker template."""
+        action = termux_task(executable="mvwifi_portal", arguments="--once")
+        bundle_root = fromstring(action.args[0].value)
+        assert bundle_root.tag == "Vals"
+        assert bundle_root.get("sr") == "val"
+        for key in (
+            "com.termux.execute.arguments",
+            "com.termux.tasker.extra.EXECUTABLE",
+            "com.termux.tasker.extra.TERMINAL",
+            "com.termux.tasker.extra.VERSION_CODE",
+            "net.dinglisch.android.tasker.subbundled",
+        ):
+            assert bundle_root.find(key) is not None, key
+            assert bundle_root.find(f"{key}-type") is not None
+
+    def test_malformed_bundle_raises(self):
+        """An unparseable bundle raises instead of silently degrading
+        to escaped text (which imports as a config-less action)."""
+        with pytest.raises(ParseError):
+            generate_project_xml(
+                TaskerProject(
+                    name="P",
+                    profiles=[],
+                    tasks=[
+                        TaskerTask(
+                            id=1,
+                            name="T",
+                            actions=[
+                                TaskerAction(
+                                    code=1,
+                                    args=[TaskerArg.bundle_arg(0, "<broken")],
+                                )
+                            ],
+                        )
+                    ],
+                )
+            )
+
+
+class TestCommittedXmlIsCurrent:
+    """Every committed .prj.xml must equal generator output — this is
+    how the stale <con>-tagged legacy XML went unnoticed (D7)."""
+
+    @pytest.mark.parametrize(
+        "path,builder",
+        [
+            ("android/MVwifiAuto.prj.xml", build_mvwifi_project),
+            ("android/MVwifiAuto-Termux.prj.xml", build_termux_project),
+            ("android/MVwifiWatchdog.prj.xml", build_watchdog_project),
+        ],
+    )
+    def test_committed_xml_matches_generator(self, path, builder):
+        from pathlib import Path
+
+        committed = (Path(__file__).resolve().parents[1] / path).read_text()
+        assert committed == generate_project_xml(builder()), (
+            f"{path} is stale — regenerate via tasker_gen"
+        )
+
+
+class TestTaskerInvariants:
+    """Structural invariants the generator must uphold."""
+
+    def test_plugin_calls_follow_self_heal(self):
+        """Every Termux:Tasker plugin action at index >0 in its task
+        is preceded by the self-heal pidof/startservice shell.  The
+        exception is MVW_RunPortalScript, whose plugin call is first
+        by design — its only caller self-heals before invoking it."""
+        root = fromstring(generate_project_xml(build_termux_project()))
+        for task in root.findall("Task"):
+            name = task.find("nme").text
+            actions = task.findall("Action")
+            for i, action in enumerate(actions):
+                if action.find("code").text != str(CODE_TERMUX_TASK):
+                    continue
+                prior_strs = "".join(
+                    s.text or ""
+                    for a in actions[:i]
+                    for s in a.iter("Str")
+                )
+                if i == 0:
+                    assert name == "MVW_RunPortalScript", (
+                        f"{name} plugin call at index 0 must be the "
+                        "dedicated RunPortalScript task"
+                    )
+                else:
+                    assert "pidof com.termux" in prior_strs, (
+                        f"{name} action {i}: plugin call not preceded "
+                        "by the Termux self-heal"
+                    )
+
+    def test_wifii_comparisons_are_contains_style(self):
+        """No Condition may compare %WIFII with a bare SSID — the ~
+        op is a whole-string match and %WIFII is a multi-line blob
+        (>>> SCAN <<< / >>> CONNECTION <<<).  RHS must be globbed."""
+        for builder in (
+            build_termux_project,
+            build_mvwifi_project,
+            build_watchdog_project,
+        ):
+            root = fromstring(generate_project_xml(builder()))
+            for cond in root.iter("Condition"):
+                lhs = cond.find("lhs").text or ""
+                rhs = cond.find("rhs").text or ""
+                if "%WIFII" in lhs:
+                    assert "*" in rhs, (
+                        f"{lhs} ~ {rhs}: whole-string match can never "
+                        "succeed against multi-line %WIFII"
+                    )
