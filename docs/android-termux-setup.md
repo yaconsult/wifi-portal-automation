@@ -406,13 +406,40 @@ Then in Tasker: long-press the bottom nav bar → **Import Project**
 → select `MVwifiAuto-Termux`.
 
 **Optional but recommended — also import `MVwifiWatchdog.prj.xml`
-once.** It's a separate project deliberately: it checks
-`mvwifi_history.log`'s mtime every 6h and posts a notification if
-nothing has written for >24h — exactly the failure mode where the
-main project gets deleted during unrelated Tasker work (observed
-Oct 13: ~12h of silent non-operation). Because it's its own
-project, it survives that deletion. Regenerate with
-`wpa-tasker-gen --watchdog`.
+once.** It's a separate project deliberately: hourly, it stats the
+history and nudge logs and posts a notification when Tasker markers
+go quiet >24h (`tasker-silent`), when Tasker is fresh but the
+Termux side is quiet >1h (`termux-silent` — a dead Termux, which
+the 24h absolute threshold could never catch in time), or when
+recent nudge results show a `no_root`/failure streak
+(`nudge-failing`). Findings land in
+`/sdcard/Tasker/mvwifi_watchdog.log`. Because it's its own project,
+it survives deletion of the main one (the Oct 13 failure mode).
+Regenerate with `wpa-tasker-gen --watchdog`.
+
+**Optional — Tasker-independent watchdog.** The Tasker-side watchdog
+has one blind spot left by design: it dies *with* Tasker. If
+Tasker itself is force-stopped, uninstalled, or broken by an OTA,
+every monitor goes silent at once. `mvwifi_sched_watchdog`
+(installed by `deploy_android.sh` into Termux's bin) runs under
+`termux-job-scheduler` — Android's JobScheduler via the Termux:API
+app — so it keeps checking the history log even when nothing
+Tasker-side exists. The two watchdogs cover each other: this one
+can't see a dead Termux (it dies too), the Tasker-side one can.
+
+Setup — needed once, only if you want this last line of defense:
+
+```bash
+# Termux:API companion app: install from F-Droid
+# (f-droid.org/packages/com.termux.api), then inside Termux:
+pkg install termux-api
+termux-job-scheduler \
+    --script /data/data/com.termux/files/usr/bin/mvwifi_sched_watchdog \
+    --period-ms 3600000
+```
+
+It posts a `MVwifiAuto silent (Tasker-side monitor gone)`
+notification when nothing has written the history log for >24h.
 
 > **⚠️ Imports are held in memory until Tasker exits gracefully.**
 > Tasker only writes its project state to disk on a clean exit —
