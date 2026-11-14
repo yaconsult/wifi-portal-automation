@@ -291,7 +291,12 @@ def _add_task(root: Element, task: TaskerTask) -> None:
     task_elem = SubElement(root, "Task", {"sr": f"task{task.id}"})
     SubElement(task_elem, "id").text = str(task.id)
     SubElement(task_elem, "nme").text = task.name
-    SubElement(task_elem, "rty").text = str(task.collision)
+    # Tasker never serializes <rty>0</rty> itself — Abort New is the
+    # default, emitted by omitting the element entirely ("0 or no
+    # tags == Abort New Task").  Writing an explicit 0 makes the
+    # project importer reject the whole file.
+    if task.collision != COLLISION_ABORT_NEW:
+        SubElement(task_elem, "rty").text = str(task.collision)
     for i, action in enumerate(task.actions):
         _add_action(task_elem, i, action)
 

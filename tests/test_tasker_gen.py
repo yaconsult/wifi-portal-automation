@@ -1,7 +1,7 @@
 """Tests for the Tasker XML generator."""
 
 from xml.dom.minidom import parseString
-from xml.etree.ElementTree import ParseError, fromstring, tostring
+from xml.etree.ElementTree import Element, ParseError, fromstring, tostring
 
 import pytest
 
@@ -25,11 +25,13 @@ from wifi_portal_automation.tasker_gen import (
     CODE_WIFI_NEAR_STATE,
     CODE_WRITE_FILE,
     COLLISION_ABORT_NEW,
+    COLLISION_RUN_BOTH,
     OP_EQUALS,
     TaskerAction,
     TaskerArg,
     TaskerProject,
     TaskerTask,
+    _add_task,
     build_mvwifi_project,
     build_termux_project,
     build_watchdog_project,
@@ -982,10 +984,21 @@ class TestCollisionSemantics:
             for task in project.tasks:
                 assert task.collision == COLLISION_ABORT_NEW, task.name
 
-    def test_rty_serializes_collision(self):
+    def test_abort_new_omits_rty_element(self):
+        """Abort New is Tasker's default — real exports omit <rty>
+        entirely, and an explicit <rty>0</rty> makes the project
+        importer reject the file."""
         root = fromstring(generate_project_xml(build_termux_project()))
         for task in root.findall("Task"):
-            assert int(task.find("rty").text) == COLLISION_ABORT_NEW
+            assert task.find("rty") is None, task.find("nme").text
+
+    def test_nondefault_collision_serializes(self):
+        root = Element("TaskerData")
+        _add_task(
+            root,
+            TaskerTask(id=1, name="T", collision=COLLISION_RUN_BOTH),
+        )
+        assert root.find("Task/rty").text == str(COLLISION_RUN_BOTH)
 
 
 class TestBundleSerialization:

@@ -23,7 +23,6 @@
 	<Task sr="task200">
 		<id>200</id>
 		<nme>MVW_HistoryWatchdog</nme>
-		<rty>0</rty>
 		<Action sr="act0" ve="7">
 			<code>123</code>
 			<label>Staleness check — Tasker-fresh/Termux-stale &gt;1h, both &gt;24h, or a no_root streak echoes STALE</label>

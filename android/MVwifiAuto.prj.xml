@@ -24,7 +24,6 @@
 	<Task sr="task40">
 		<id>40</id>
 		<nme>HandlePortal</nme>
-		<rty>0</rty>
 		<Action sr="act0" ve="7">
 			<code>30</code>
 			<Int sr="arg0" val="0" />
@@ -151,7 +150,6 @@ Referer:http://%PortalHost/</Str>
 	<Task sr="task50">
 		<id>50</id>
 		<nme>ConnectToCmvwifi</nme>
-		<rty>0</rty>
 		<Action sr="act0" ve="7">
 			<code>37</code>
 			<ConditionList sr="if">
