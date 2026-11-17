@@ -137,7 +137,7 @@ class NudgeReport:
     fallback_stay, wifi_disabled, target_absent, deferred,
     connect_requested, connect_unconfirmed, promoted, dry_run,
     no_root, status_failed, scan_failed, connect_failed, throttled,
-    portal_rehandled, or portal_recheck_failed."""
+    portal_rehandled, portal_recheck_failed, or portal_cooldown."""
 
     ok: bool
     wifi_enabled: bool = False
@@ -242,16 +242,16 @@ def _report(
     )
 
 
-def _read_last_scan(state_file: Path) -> float | None:
-    """Return the epoch seconds of the last recorded scan, or None."""
+def read_timestamp(state_file: Path) -> float | None:
+    """Return the epoch seconds recorded in *state_file*, or None."""
     try:
         return float(state_file.read_text().strip())
     except (OSError, ValueError):
         return None
 
 
-def _write_last_scan(state_file: Path) -> None:
-    """Record the current time as the last scan timestamp."""
+def write_timestamp(state_file: Path) -> None:
+    """Record the current time in *state_file*."""
     try:
         state_file.parent.mkdir(parents=True, exist_ok=True)
         state_file.write_text(str(time.time()))
@@ -289,6 +289,31 @@ def wifi_validated(su: str) -> bool | None:
     return None
 
 
+def bounce_wifi(su: str, settle: float = 3.0) -> bool:
+    """Toggle WiFi off/on so Android re-validates the network now.
+
+    After a captive portal is accepted, ``dumpsys connectivity``
+    still reports ``CAPTIVE_PORTAL`` until Android's own canary probe
+    passes — and NetworkMonitor backs off exponentially after failed
+    probes (observed on-device as a ~10 min lag between portal
+    acceptance and ``VALIDATED``, during which apps keep using
+    cellular).  Bouncing the radio spawns a fresh NetworkMonitor
+    whose first probe runs immediately, collapsing the lag to
+    seconds.  Safe to call when the network has no internet anyway.
+    """
+    rc, out = run_root(su, "svc wifi disable")
+    if rc != 0:
+        logger.warning("svc wifi disable failed (rc=%s): %s", rc, out.strip())
+        return False
+    time.sleep(settle)
+    rc, out = run_root(su, "svc wifi enable")
+    if rc != 0:
+        logger.warning("svc wifi enable failed (rc=%s): %s", rc, out.strip())
+        return False
+    logger.info("WiFi bounced to force Android re-validation")
+    return True
+
+
 def _connect(su: str, ssid: str, autojoin_disabled: bool) -> int:
     """Issue ``cmd wifi connect-network`` for *ssid*; returns the rc.
 
@@ -317,6 +342,9 @@ def run_nudge(
     portal_ssids: tuple[str, ...] = (),
     on_unvalidated: Callable[[], bool] | None = None,
     confirm_delay: float = 5.0,
+    bounce: bool = True,
+    portal_cooldown: float = 600.0,
+    portal_state_file: Path | None = None,
 ) -> NudgeReport:
     """Check WiFi state and request a join if a target SSID is visible.
 
@@ -359,6 +387,20 @@ def run_nudge(
             before re-reading ``cmd wifi status`` to confirm the
             association actually landed (``connect_unconfirmed``
             otherwise).  0 skips the confirmation.
+        bounce: After a successful portal re-handle, toggle WiFi
+            off/on so Android's NetworkMonitor re-validates
+            immediately instead of waiting out its probe backoff
+            (~10 min observed on-device).
+        portal_cooldown: Minimum seconds between portal re-handles.
+            Android validation lags the actual portal acceptance, so
+            back-to-back ticks would re-run the handler for a
+            network that's already open — a fresh
+            *portal_state_file* short-circuits to
+            ``portal_cooldown`` instead.
+        portal_state_file: Timestamp file recording the last portal
+            handle; shared with ``wpa-android`` so the
+            event-driven and recheck paths dedupe.  ``None``
+            disables the cooldown.
 
     Returns:
         A :class:`NudgeReport` describing what was decided and done.
@@ -383,12 +425,26 @@ def run_nudge(
         if on_unvalidated is not None and status.connected_ssid in portal_ssids:
             validated = wifi_validated(su)
             if validated is False:
+                if portal_state_file is not None:
+                    last = read_timestamp(portal_state_file)
+                    if last is not None and time.time() - last < portal_cooldown:
+                        logger.info(
+                            "portal handled %.0fs ago (< %ss cooldown) — "
+                            "skipping re-handle while Android re-validates",
+                            time.time() - last,
+                            portal_cooldown,
+                        )
+                        return _report("portal_cooldown", True, status, targets)
                 logger.info(
                     "connected to %s but network is not validated — "
                     "re-running portal handler",
                     status.connected_ssid,
                 )
                 ok = on_unvalidated()
+                if ok and portal_state_file is not None:
+                    write_timestamp(portal_state_file)
+                if ok and bounce:
+                    bounce_wifi(su, settle)
                 return _report(
                     "portal_rehandled" if ok else "portal_recheck_failed",
                     ok,
@@ -402,14 +458,14 @@ def run_nudge(
         return _report("connected_elsewhere", True, status, targets)
 
     if min_interval > 0 and state_file is not None:
-        last = _read_last_scan(state_file)
+        last = read_timestamp(state_file)
         if last is not None and time.time() - last < min_interval:
             logger.info(
                 "throttled: last scan %.1fs ago (< %ss)",
                 time.time() - last, min_interval,
             )
             return _report("throttled", True, status, targets)
-        _write_last_scan(state_file)
+        write_timestamp(state_file)
 
     rc, out = _scan(su, settle)
     if rc != 0:
@@ -588,6 +644,29 @@ def main(argv: list[str] | None = None) -> int:
         "covers missed/failed edge-triggered portal runs",
     )
     parser.add_argument(
+        "--no-wifi-bounce",
+        action="store_true",
+        help="Don't toggle WiFi after a successful portal handle "
+        "(default: bounce so Android re-validates immediately "
+        "instead of waiting out its probe backoff)",
+    )
+    parser.add_argument(
+        "--portal-cooldown",
+        type=float,
+        default=600.0,
+        metavar="SECS",
+        help="Minimum seconds between portal re-handles while Android "
+        "validation catches up (default: 600)",
+    )
+    parser.add_argument(
+        "--portal-state-file",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="Timestamp file recording the last portal handle "
+        "(default: ~/.cache/wifi_portal_automation/last_portal)",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Report the decision without issuing connect-network",
@@ -651,6 +730,12 @@ def main(argv: list[str] | None = None) -> int:
             ),
             portal_ssids=config.portal_ssids,
             on_unvalidated=on_unvalidated,
+            bounce=not args.no_wifi_bounce,
+            portal_cooldown=args.portal_cooldown,
+            portal_state_file=(
+                args.portal_state_file
+                or Path.home() / ".cache" / "wifi_portal_automation" / "last_portal"
+            ),
         )
 
     # The resolved action lands in the log file too — promoted /

@@ -300,6 +300,112 @@ class TestRunNudge:
         assert report.action == "already_connected"
         assert report.ok is True
 
+    def _portal_fake(self, commands: list[str]):
+        """run_root fake for the portal-recheck path, svc wifi aware."""
+        def fake(su, command, timeout=30):
+            commands.append(command)
+            if "svc wifi" in command:
+                return (0, "")
+            if "status" in command:
+                return (0, STATUS_CONNECTED)
+            if "dumpsys" in command:
+                return (0, DC_WIFI_CAPTIVE)
+            return (1, f"unexpected command: {command}")
+
+        return fake
+
+    def test_portal_rehandle_bounces_and_stamps(self, tmp_path):
+        """A successful re-handle toggles WiFi and writes the stamp."""
+        commands: list[str] = []
+        stamp = tmp_path / "last_portal"
+        with patch(
+            "wifi_portal_automation.wifi_nudge.run_root",
+            side_effect=self._portal_fake(commands),
+        ):
+            report = run_nudge(
+                "su", ["cmvwifi"], settle=0,
+                portal_ssids=("cmvwifi",),
+                on_unvalidated=lambda: True,
+                portal_state_file=stamp,
+            )
+        assert report.action == "portal_rehandled"
+        assert "svc wifi disable" in commands
+        assert "svc wifi enable" in commands
+        assert stamp.exists()
+
+    def test_portal_cooldown_skips_rehandle(self, tmp_path):
+        """A fresh stamp short-circuits to portal_cooldown."""
+        calls: list[int] = []
+        stamp = tmp_path / "last_portal"
+        stamp.write_text(str(time.time()))
+        with patch(
+            "wifi_portal_automation.wifi_nudge.run_root",
+            side_effect=self._portal_fake([]),
+        ):
+            report = run_nudge(
+                "su", ["cmvwifi"], settle=0,
+                portal_ssids=("cmvwifi",),
+                on_unvalidated=lambda: calls.append(1) or True,
+                portal_state_file=stamp,
+            )
+        assert calls == []
+        assert report.action == "portal_cooldown"
+        assert report.ok is True
+
+    def test_portal_cooldown_expired_rehandles(self, tmp_path):
+        """A stale stamp doesn't block a needed re-handle."""
+        calls: list[int] = []
+        stamp = tmp_path / "last_portal"
+        stamp.write_text(str(time.time() - 3600))
+        with patch(
+            "wifi_portal_automation.wifi_nudge.run_root",
+            side_effect=self._portal_fake([]),
+        ):
+            report = run_nudge(
+                "su", ["cmvwifi"], settle=0,
+                portal_ssids=("cmvwifi",),
+                on_unvalidated=lambda: calls.append(1) or True,
+                portal_state_file=stamp,
+                portal_cooldown=600.0,
+            )
+        assert calls == [1]
+        assert report.action == "portal_rehandled"
+
+    def test_portal_rehandle_no_bounce_flag(self, tmp_path):
+        """bounce=False handles the portal without svc wifi calls."""
+        commands: list[str] = []
+        with patch(
+            "wifi_portal_automation.wifi_nudge.run_root",
+            side_effect=self._portal_fake(commands),
+        ):
+            report = run_nudge(
+                "su", ["cmvwifi"], settle=0,
+                portal_ssids=("cmvwifi",),
+                on_unvalidated=lambda: True,
+                bounce=False,
+                portal_state_file=tmp_path / "last_portal",
+            )
+        assert report.action == "portal_rehandled"
+        assert not any("svc wifi" in c for c in commands)
+
+    def test_portal_recheck_failure_no_stamp_no_bounce(self, tmp_path):
+        """A failed re-handle stamps nothing and never bounces."""
+        commands: list[str] = []
+        stamp = tmp_path / "last_portal"
+        with patch(
+            "wifi_portal_automation.wifi_nudge.run_root",
+            side_effect=self._portal_fake(commands),
+        ):
+            report = run_nudge(
+                "su", ["cmvwifi"], settle=0,
+                portal_ssids=("cmvwifi",),
+                on_unvalidated=lambda: False,
+                portal_state_file=stamp,
+            )
+        assert report.action == "portal_recheck_failed"
+        assert not stamp.exists()
+        assert not any("svc wifi" in c for c in commands)
+
     def test_noop_when_connected_elsewhere(self):
         commands: list[str] = []
 

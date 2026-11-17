@@ -22,15 +22,22 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+from pathlib import Path
 
 from wifi_portal_automation.captive_portal import (
     CaptivePortalError,
     handle_cmvwifi_connection,
 )
+from wifi_portal_automation.root_shell import find_su
 from wifi_portal_automation.wifi_binding import (
     InterfaceBindingError,
     InterfaceBoundAdapter,
     create_wifi_session,
+)
+from wifi_portal_automation.wifi_nudge import (
+    bounce_wifi,
+    wifi_validated,
+    write_timestamp,
 )
 
 logger = logging.getLogger("wifi_portal_automation.android")
@@ -113,6 +120,20 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Write logs to a file (e.g. /sdcard/mvwifi.log)",
     )
+    parser.add_argument(
+        "--no-wifi-bounce",
+        action="store_true",
+        help="Don't toggle WiFi after handling a captive portal "
+        "(default: bounce so Android re-validates immediately)",
+    )
+    parser.add_argument(
+        "--portal-state-file",
+        type=Path,
+        default=Path.home() / ".cache" / "wifi_portal_automation" / "last_portal",
+        metavar="PATH",
+        help="Timestamp file recording the last portal handle "
+        "(shared with the wifi_nudge recheck cooldown)",
+    )
 
     args = parser.parse_args(argv)
 
@@ -141,6 +162,15 @@ def main(argv: list[str] | None = None) -> int:
         except OSError as e:
             print(f"Warning: cannot write to {args.log_file}: {e}")
 
+    # Whether Android currently reports the WiFi network unvalidated —
+    # checked before handling so a successful run on a captive network
+    # can bounce the radio and collapse NetworkMonitor's probe backoff
+    # (observed on-device as a ~10 min lag between portal acceptance
+    # and the VALIDATED flag).  Without root or a readable dumpsys the
+    # flag stays False: the handler still runs, just no bounce.
+    su = find_su() if not args.no_wifi_bounce else None
+    captive = su is not None and wifi_validated(su) is False
+
     # CaptivePortalError propagates after the final retry — catch it
     # so the run still records its outcome line.  An uncaught
     # traceback leaves no "Run FAILED" marker, which troubleshooting
@@ -155,6 +185,12 @@ def main(argv: list[str] | None = None) -> int:
         logging.error("%s", e)
         logging.info("Run FAILED")
         return 1
+
+    if success and captive and su is not None:
+        # Stamp so the wifi_nudge recheck cooldown skips a redundant
+        # re-handle while Android catches up.
+        write_timestamp(args.portal_state_file)
+        bounce_wifi(su)
 
     # The log file is overwritten each run (mode="w") and kept on
     # success, so its last line always records the outcome of the

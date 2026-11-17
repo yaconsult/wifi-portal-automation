@@ -158,6 +158,77 @@ class TestMain:
         assert exit_code == 1
         assert "Run FAILED" in caplog.text
 
+    def test_main_bounces_wifi_when_captive(self, tmp_path):
+        """Captive pre-check + successful handle -> stamp + bounce."""
+        stamp = tmp_path / "last_portal"
+        with (
+            patch("wifi_portal_automation.android.find_su", return_value="su"),
+            patch("wifi_portal_automation.android.wifi_validated", return_value=False),
+            patch("wifi_portal_automation.android.run_once", return_value=True),
+            patch("wifi_portal_automation.android.bounce_wifi") as mock_bounce,
+        ):
+            exit_code = main(
+                ["--once", "--portal-state-file", str(stamp)]
+            )
+
+        assert exit_code == 0
+        mock_bounce.assert_called_once_with("su")
+        assert stamp.exists()
+
+    def test_main_no_bounce_when_validated(self, tmp_path):
+        """Already-validated network -> handler runs, no bounce."""
+        stamp = tmp_path / "last_portal"
+        with (
+            patch("wifi_portal_automation.android.find_su", return_value="su"),
+            patch("wifi_portal_automation.android.wifi_validated", return_value=True),
+            patch("wifi_portal_automation.android.run_once", return_value=True),
+            patch("wifi_portal_automation.android.bounce_wifi") as mock_bounce,
+        ):
+            exit_code = main(
+                ["--once", "--portal-state-file", str(stamp)]
+            )
+
+        assert exit_code == 0
+        mock_bounce.assert_not_called()
+        assert not stamp.exists()
+
+    def test_main_no_bounce_flag_skips_check(self, tmp_path):
+        """--no-wifi-bounce skips the dumpsys pre-check entirely."""
+        with (
+            patch("wifi_portal_automation.android.find_su") as mock_su,
+            patch("wifi_portal_automation.android.run_once", return_value=True),
+            patch("wifi_portal_automation.android.bounce_wifi") as mock_bounce,
+        ):
+            exit_code = main(
+                [
+                    "--once",
+                    "--no-wifi-bounce",
+                    "--portal-state-file",
+                    str(tmp_path / "last_portal"),
+                ]
+            )
+
+        assert exit_code == 0
+        mock_su.assert_not_called()
+        mock_bounce.assert_not_called()
+
+    def test_main_no_bounce_on_failure(self, tmp_path):
+        """A failed handle never bounces even when captive."""
+        stamp = tmp_path / "last_portal"
+        with (
+            patch("wifi_portal_automation.android.find_su", return_value="su"),
+            patch("wifi_portal_automation.android.wifi_validated", return_value=False),
+            patch("wifi_portal_automation.android.run_once", return_value=False),
+            patch("wifi_portal_automation.android.bounce_wifi") as mock_bounce,
+        ):
+            exit_code = main(
+                ["--once", "--portal-state-file", str(stamp)]
+            )
+
+        assert exit_code == 1
+        mock_bounce.assert_not_called()
+        assert not stamp.exists()
+
     def test_log_file_kept_on_success(self, tmp_path):
         """Test that the log file is kept (overwritten) on success."""
         log_file = tmp_path / "mvwifi.log"
