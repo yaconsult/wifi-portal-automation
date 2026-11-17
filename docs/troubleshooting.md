@@ -583,10 +583,10 @@ scheduled tick.
 **Problem**: The phone shows it is connected to cmvwifi, but apps
 report no internet for many minutes after arriving.
 
-**Cause**: The captive portal wasn't accepted yet — the trigger
-ran late. With an old WiFi Near profile, Android's scan throttling
-can delay Tasker ~30 min after the actual association. With WiFi
-Connected this can't happen; it fires at association.
+**Cause A — the portal wasn't accepted yet** (trigger ran late).
+With an old WiFi Near profile, Android's scan throttling can delay
+Tasker ~30 min after the actual association. With WiFi Connected
+this can't happen; it fires at association.
 
 **Diagnose**: Check `~/storage/shared/Tasker/mvwifi_history.log`
 and compare the `tasker | MVW_PortalOnConnect fired` timestamp with when
@@ -595,6 +595,29 @@ gap means a stale WiFi Near import.
 
 **Fix**: Same as above — re-import the current XML so the profile
 is WiFi Connected.
+
+**Cause B — portal accepted, but Android hasn't re-validated**
+(observed 2026-11-17): `MVW_PortalOnConnect` completed the portal
+within ~10 s, yet `dumpsys connectivity` kept reporting
+`CAPTIVE_PORTAL` for ~10 more minutes. Android's NetworkMonitor
+backs off its canary probes after earlier failures, and portal
+acceptance does not reset that backoff — during the lag apps keep
+routing over cellular and the WiFi tile shows "no internet".
+
+**Diagnose**: `su -c 'dumpsys connectivity' | grep "ni{WIFI"` —
+if it says `CAPTIVE_PORTAL` while `mvwifi_nudge.log` shows
+`portal_rehandled`/`Run completed successfully`, this is the lag.
+A run of `portal_rehandled` on *every* tick (rather than once then
+`portal_cooldown`) also fits.
+
+**Fix** (current builds): after a successful handle on an
+unvalidated network, both portal paths now bounce WiFi once
+(`svc wifi disable/enable`) — a fresh NetworkMonitor probes
+immediately and validates within seconds, collapsing the lag.
+Re-handles inside a 10 min cooldown report `portal_cooldown`
+instead of re-running the handler while Android catches up.
+Opt-outs: `--no-wifi-bounce` / `--portal-cooldown` /
+`--portal-state-file` on both `wifi_nudge` and `wpa-android`.
 
 ### Phone takes 15-30 minutes to join cmvwifi
 
@@ -628,10 +651,17 @@ su -c 'cmd wifi connect-network cmvwifi open'
 lines): `already_connected` / `connected_elsewhere` / `wifi_disabled`
 / `target_absent` are no-ops; `deferred` means the xfinitywifi run
 saw a preferred SSID in scan results and yielded to it;
-`connect_requested` joined a target; `promoted` moved the phone off
+`connect_requested` joined a target; `connect_unconfirmed` means
+the join request was accepted but association didn't confirm;
+`promoted` moved the phone off
 a fallback SSID (xfinitywifi) onto a visible preferred one;
 `fallback_stay` means it's on xfinitywifi and
-no preferred network was in range. `xfinitywifi` is a **fallback
+no preferred network was in range; `portal_rehandled` re-ran the
+portal handler on an unvalidated portal SSID (and bounced WiFi to
+force re-validation); `portal_cooldown` means a recent handle is
+still waiting for Android to validate — the nudge is deliberately
+idle; `portal_recheck_failed` means the handler ran but internet
+still wasn't verified. `xfinitywifi` is a **fallback
 tier**: joined only while fully disconnected, saved with auto-join
 disabled (`-d`), and managed by the separate `xfinitywifi Periodic
 Nudge` profile — disable that profile in Tasker to exclude

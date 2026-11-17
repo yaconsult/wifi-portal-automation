@@ -86,6 +86,19 @@ the window — the periodic ticks always scan, so an unlock just
 after a tick may do one redundant scan (harmless). All the same
 semantics apply — never-steal, promotion off xfinity, deferral.
 
+The preferred nudges also carry `--recheck-portal`: when connected to a
+`portal_ssids` network that `dumpsys connectivity` still reports
+unvalidated, the nudge re-runs the portal handler itself — covering
+missed/failed edge-triggered portal runs (the "associated but captive
+for 20 h" failure of 2026-11-12). After a successful handle it bounces
+WiFi once (`svc wifi disable/enable`): Android's NetworkMonitor backs
+off its canary probes after failures and would otherwise keep
+reporting `CAPTIVE_PORTAL` for ~10 min post-acceptance (observed
+2026-11-17) while apps stay on cellular. A shared timestamp file
+(`~/.cache/wifi_portal_automation/last_portal`, also written by
+`wpa-android`) rate-limits re-handles to once per 10 min while
+Android catches up — interim ticks report `portal_cooldown`.
+
 #### Network precedence
 
 Networks are in three tiers, and each tier is governed by a different

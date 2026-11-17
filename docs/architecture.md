@@ -153,9 +153,17 @@ Reuses the same portal-handling logic as the Linux version, but routes
 HTTP through a WiFi-bound session. Called from Tasker or run directly
 from the Termux command line.
 
+After a successful handle on a network Android still reports
+unvalidated, `main()` stamps the shared portal timestamp and bounces
+WiFi (`svc wifi` toggle) — forcing NetworkMonitor to re-probe
+immediately instead of waiting out its exponential backoff. The
+pre-handle `wifi_validated` check gates this so a healthy network is
+never bounced.
+
 **Key Function**
 - `run_once(interface, verbose, max_portal_attempts)` - Single portal cycle
-- `main()` - CLI entry point (`wpa-android`)
+- `main()` - CLI entry point (`wpa-android`; `--no-wifi-bounce`,
+  `--portal-state-file` tune the post-handle behavior)
 
 ### `tasker_gen.py` - Tasker XML Generator
 
@@ -211,9 +219,26 @@ retries. Runs periodically from a Tasker Time profile and issues
 `cmd wifi connect-network` when a target SSID is visible but the phone
 is disconnected. Never acts while connected to any network.
 
+With `--recheck-portal` it also compensates for a second Android
+quirk: NetworkMonitor backs off its canary probes after failed
+validations, so `dumpsys connectivity` can report `CAPTIVE_PORTAL`
+for ~10 min after the portal was actually accepted (observed
+2026-11-17). When connected to a `portal_ssids` network that is not
+validated, the nudge re-runs the portal handler and then
+`bounce_wifi()` toggles `svc wifi disable/enable` — a fresh
+NetworkMonitor probes immediately. Successful handles stamp
+`~/.cache/wifi_portal_automation/last_portal` and re-checks inside
+`--portal-cooldown` (600s) report `portal_cooldown` instead of
+re-running the handler while Android catches up; the same stamp is
+written by `wpa-android` so the event-driven and recheck paths
+dedupe.
+
 **Key Functions**
 - `parse_wifi_status()` / `parse_scan_results()` - Parsers for
   `cmd wifi` output (verified against on-device captures)
+- `wifi_validated()` - `dumpsys connectivity` VALIDATED/CAPTIVE_PORTAL
+  check for the WiFi NetworkAgentInfo block
+- `bounce_wifi()` - `svc wifi` toggle forcing immediate re-validation
 - `run_nudge()` - Decision + connect request
 - `main()` - CLI entry point (`wpa-nudge`, `--dry-run`/`--json`/
   `--markdown`)
@@ -290,9 +315,10 @@ the portal.
    ~/.termux/tasker/mvwifi_portal → wpa-android --once
 4. Python: bind session to wlan0, GET canonical.html,
    extract portal host from redirect, POST terms, verify
-5. Android independently re-validates connectivity
-   (connectivitycheck.gstatic.com) — may take 1-3 min before
-   the OS marks WiFi as having internet
+5. If the network was unvalidated, wpa-android stamps the shared
+   portal timestamp and bounces WiFi (svc wifi toggle) — Android's
+   canary-probe backoff would otherwise leave CAPTIVE_PORTAL for
+   ~10 min; a fresh NetworkMonitor re-validates within seconds
 ```
 
 ### Why root + polling instead of Tasker's network contexts
