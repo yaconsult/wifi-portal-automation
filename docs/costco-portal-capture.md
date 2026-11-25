@@ -274,6 +274,10 @@ The probe (in `src/wifi_portal_automation/costco_probe.py`) collects:
 Output lands in `~/storage/shared/costco_capture/capture_<ts>/`
 (`summary.json`, `report.md`, `portal.html`, `portal_report.txt`,
 `intents.txt`, `foreground.txt`, `app_filters.txt`, `assets/`).
+When the portal does **not** redirect, the bodies are saved instead:
+`canary_body.txt` (Firefox canary — real canonical page or an
+inline portal page) and `gen204_body.txt` (Android's `generate_204`
+canary — the usual login surface for walled gardens).
 
 Manual run (same thing, from Termux):
 
@@ -322,7 +326,9 @@ Notes:
 - **Phone**: `~/storage/shared/costco_capture/capture_<ts>/` with
   `summary.json`, `report.md`, `portal.html`, `intents.txt`
   (app-launch intents), `app_filters.txt`, `foreground.txt`, plus
-  downloaded `assets/` (pull via `adb pull` or browse shared storage)
+  downloaded `assets/` — and `canary_body.txt`/`gen204_body.txt`
+  when there was no redirect (pull via `adb pull` or browse shared
+  storage)
 
 ## What to do with the report
 
