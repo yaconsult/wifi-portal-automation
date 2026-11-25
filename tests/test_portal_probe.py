@@ -204,6 +204,44 @@ class TestRunProbe:
         assert summary["internet_ok"] is True
         assert "no portal redirect" in summary["note"]
 
+    def test_no_redirect_saves_canary_bodies(self, tmp_path: Path):
+        """A non-redirect 200 saves both canary bodies (SHGuestNet
+        serves an inline portal page with no redirect — the body is
+        the only evidence of what to POST)."""
+        report = self._portal_report()
+        report.redirect_url = ""
+        response = MagicMock()
+        response.status_code = 200
+        response.text = "<html>sutter login form</html>"
+        session = MagicMock()
+        session.get.return_value = response
+        with (
+            patch(
+                "wifi_portal_automation.portal_probe.create_wifi_session",
+                return_value=session,
+            ),
+            patch(
+                "wifi_portal_automation.portal_probe.analyze_portal", return_value=report
+            ),
+            patch(
+                "wifi_portal_automation.portal_probe.find_su", return_value=None
+            ),
+            patch(
+                "wifi_portal_automation.portal_probe.verify_internet_connectivity",
+                return_value=False,
+            ),
+        ):
+            summary = run_probe(outdir=tmp_path, wait=0)
+
+        assert (tmp_path / "canary_body.txt").read_text() == (
+            "<html>sutter login form</html>"
+        )
+        assert (tmp_path / "gen204_body.txt").read_text() == (
+            "<html>sutter login form</html>"
+        )
+        assert summary["canary_status"] == 200
+        assert summary["gen204_status"] == 200
+
     def test_name_and_package_flow_through(self, tmp_path: Path):
         """--name/--package reach the logcat keyword and dumpsys call."""
         with (

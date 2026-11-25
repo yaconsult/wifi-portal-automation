@@ -59,6 +59,11 @@ logger = logging.getLogger("wifi_portal_automation.portal_probe")
 # redirect it).
 PROBE_URL = "http://detectportal.firefox.com/canonical.html"
 
+# Android's own captive-portal canary expects an empty 204 — a walled
+# garden that lets the Mozilla URL through typically still serves its
+# login page here.
+ANDROID_CANARY_URL = "http://connectivitycheck.gstatic.com/generate_204"
+
 # Costco app package — confirmed installed on the test device.
 COSTCO_PACKAGE = "com.costco.app.android"
 
@@ -232,6 +237,39 @@ def dump_device_state(su: str, outdir: Path, package: str = "") -> None:
     )
 
 
+def capture_canary_bodies(
+    session: requests.Session,
+    outdir: Path,
+    probe_url: str,
+) -> dict[str, object]:
+    """Save canary response bodies when the probe saw no redirect.
+
+    Fetches the Firefox canary (*probe_url*) plus Android's
+    ``generate_204`` canary and writes each body to
+    ``<label>_body.txt`` in *outdir*.  Returns summary keys with the
+    per-canary status codes; values stay JSON-serializable even when
+    the request fails.
+    """
+    results: dict[str, object] = {}
+    for label, url in (
+        ("canary", probe_url),
+        ("gen204", ANDROID_CANARY_URL),
+    ):
+        try:
+            r = session.get(url, allow_redirects=False, timeout=10)
+            status = getattr(r, "status_code", None)
+            body = r.text if isinstance(getattr(r, "text", None), str) else ""
+            (outdir / f"{label}_body.txt").write_text(
+                body or "(empty body)\n", encoding="utf-8"
+            )
+            results[f"{label}_status"] = (
+                status if isinstance(status, int) else str(status)
+            )
+        except Exception as e:  # noqa: BLE001 — capture must not die on one fetch
+            results[f"{label}_status"] = f"error: {e}"
+    return results
+
+
 def run_probe(
     outdir: Path,
     interface: str | None = None,
@@ -282,6 +320,15 @@ def run_probe(
     summary["redirect_url"] = report.redirect_url
     summary["portal_host"] = report.portal_host
     summary["portal_error"] = report.error
+
+    if not report.redirect_url:
+        # A non-redirect 200 is ambiguous: the body could be the real
+        # canonical page (HTTP passed through) or an inline portal
+        # page from a hijacking proxy — SHGuestNet does the latter,
+        # which is why its captures all say "no portal redirect"
+        # while internet_ok is false.  Save both canary bodies so the
+        # actual portal surface is captured either way.
+        summary.update(capture_canary_bodies(session, outdir, probe_url))
 
     links: set[str] = set()
     html_path = outdir / "portal.html"
