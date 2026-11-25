@@ -20,6 +20,7 @@
 - [Plugin reports OK but wrappers never run](#plugin-reports-ok-but-termux-wrappers-never-execute-dead-termux)
 - [Delay between "Portal handling complete" and working internet](#delay-between-portal-handling-complete-and-working-internet)
 - [HTTP requests timing out with cellular ON](#http-requests-timing-out-with-cellular-on)
+- [WiFi connected at a captive site, then drops entirely](#wifi-connected-at-a-captive-site-then-drops-entirely)
 - ["Could not determine IPv4 address for interface 'wlan0'"](#could-not-determine-ipv4-address-for-interface-wlan0)
 - [`ip addr` returns "cannot bind netlink socket"](#ip-addr-returns-cannot-bind-netlink-socket-permission-denied)
 - [Connected to cmvwifi but cellular stays default](#connected-to-cmvwifi-but-cellular-stays-default-no-wifi-icon)
@@ -853,6 +854,27 @@ expected — Termux cannot use `ip addr`.
 **Fix**: Use the ioctl-based detection instead. The diagnostic script
 `scripts/detect_interface.py` uses `SIOCGIFADDR` ioctl which works from
 Termux.
+
+### WiFi connected at a captive site, then drops entirely
+
+**Problem**: Phone associates to an enterprise guest network, then
+minutes later WiFi shows disconnected even though you haven't moved.
+
+**Cause**: Enterprise WLANs shuffle *unauthenticated* captive clients —
+AP steering pushes the phone across BSSIDs (a "roaming storm" while
+sitting still) and eventually the network deauths it. Android then
+blocklists the BSSID / temporarily disables the config for
+`REASON_NETWORK_VALIDATION_FAILURE`, so it doesn't rush to rejoin.
+
+**Diagnose**: `su -c 'dumpsys wifi'` — look for
+`NETWORK_DISCONNECTION_EVENT ... locallyGenerated: false`
+(remote-initiated drop), repeated `SUPPLICANT_STATE_CHANGE_EVENT`
+lines across different BSSIDs in minutes (steering), and
+`WifiBlocklistMonitor addToBlocklist` entries.
+
+**Fix**: Sign in to the portal — an accepted network stops being
+treated as a bad network. If the SSID has no auto-acceptor in this
+project, it's manual until one is built.
 
 ### Frequent "granted superuser rights" toasts (every ~15 min)
 
